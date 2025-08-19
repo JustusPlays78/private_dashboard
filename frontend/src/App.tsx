@@ -7,18 +7,18 @@ import Scripts from './pages/Scripts.tsx';
 import './index.css';
 
 function App() {
-    return (
-        <Router>
-            <Layout>
-                <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/notes" element={<Notes />} />
-                    <Route path="/tasks" element={<Tasks />} />
-                    <Route path="/scripts" element={<Scripts />} />
-                </Routes>
-            </Layout>
-        </Router>
-    );
+  return (
+    <Router>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/notes" element={<Notes />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/scripts" element={<Scripts />} />
+        </Routes>
+      </Layout>
+    </Router>
+  );
 }
 
 export default App;
