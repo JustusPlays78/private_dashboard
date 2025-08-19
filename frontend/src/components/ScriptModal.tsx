@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Save, Trash2, Plus } from 'lucide-react';
 import Modal from './Modal';
-import { Script, ScriptVariable } from '../types';
+import { NewScriptVariable, Script } from '../types';
 import { scriptsApi } from '../api';
 
 interface ScriptModalProps {
@@ -26,7 +26,7 @@ const ScriptModal: React.FC<ScriptModalProps> = ({
     description: '',
     content: '',
   });
-  const [variables, setVariables] = useState<Omit<ScriptVariable, 'id'>[]>([]);
+  const [variables, setVariables] = useState<NewScriptVariable[]>([]);
   const [loading, setLoading] = useState(false);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -71,6 +71,29 @@ const ScriptModal: React.FC<ScriptModalProps> = ({
     }
   }, [formData.content]);
 
+  // Handle modal close properly
+  const handleModalClose = () => {
+    // Check if there are unsaved changes
+    if (
+      formData.name.trim() !== (script?.name || '') ||
+      formData.description?.trim() !== (script?.description || '') ||
+      formData.content.trim() !== (script?.content || '') ||
+      variables.length !== (script?.variables.length || 0)
+    ) {
+      // If there are changes, confirm before closing
+      if (
+        confirm(
+          'Es gibt ungespeicherte Änderungen. Möchtest du wirklich schließen?'
+        )
+      ) {
+        onClose();
+      }
+    } else {
+      // No changes, close directly
+      onClose();
+    }
+  };
+
   const handleSave = async () => {
     // Validation
     if (!formData.name || !formData.name.trim()) {
@@ -102,10 +125,13 @@ const ScriptModal: React.FC<ScriptModalProps> = ({
       };
 
       if (isCreateMode) {
-        const newScript = await scriptsApi.create(scriptData);
+        const newScript = await scriptsApi.create(scriptData as any);
         onScriptCreated(newScript);
       } else if (script) {
-        const updatedScript = await scriptsApi.update(script.id, scriptData);
+        const updatedScript = await scriptsApi.update(
+          script.id,
+          scriptData as any
+        );
         onScriptUpdated(updatedScript);
       }
       onClose();
@@ -152,7 +178,7 @@ const ScriptModal: React.FC<ScriptModalProps> = ({
 
   const handleUpdateVariable = (
     index: number,
-    field: keyof Omit<ScriptVariable, 'id'>,
+    field: keyof NewScriptVariable,
     value: any
   ) => {
     const updatedVariables = [...variables];
@@ -174,7 +200,12 @@ const ScriptModal: React.FC<ScriptModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={getModalTitle()} size="2xl">
+    <Modal
+      isOpen={isOpen}
+      onClose={handleModalClose}
+      title={getModalTitle()}
+      size="2xl"
+    >
       <div className="space-y-6">
         {/* Basic Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -211,7 +242,6 @@ const ScriptModal: React.FC<ScriptModalProps> = ({
           </div>
         </div>
         {/* Script Content */}
-        // Script Content
         <div>
           <label className="block text-sm font-medium text-secondary mb-2">
             Script Inhalt *

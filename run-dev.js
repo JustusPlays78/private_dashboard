@@ -1,14 +1,14 @@
 // run-dev.js
-import { spawn } from 'child_process';
+const { spawn } = require('child_process');
 
 console.log('Starting backend and frontend...');
 
-const backend = spawn('cd', ['backend', '&&', 'bun', 'run', 'dev'], {
+const backend = spawn('npm', ['run', 'dev:backend'], {
     stdio: 'inherit',
     shell: true
 });
 
-const frontend = spawn('cd', ['frontend', '&&', 'bun', 'run', 'dev'], {
+const frontend = spawn('npm', ['run', 'dev:frontend'], {
     stdio: 'inherit',
     shell: true
 });

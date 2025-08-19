@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -27,6 +27,20 @@ const Modal: React.FC<ModalProps> = ({
     '3xl': 'max-w-7xl',
   };
 
+  // Handle ESC key press
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+    return () => {
+      document.removeEventListener('keydown', handleEscKey);
+    };
+  }, [isOpen, onClose]);
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -34,6 +48,7 @@ const Modal: React.FC<ModalProps> = ({
         <div
           className="fixed inset-0 bg-black bg-opacity-75 transition-opacity"
           onClick={onClose}
+          aria-hidden="true"
         ></div>
 
         {/* Modal panel */}
@@ -53,8 +68,10 @@ const Modal: React.FC<ModalProps> = ({
                 {title}
               </h3>
               <button
+                type="button"
                 onClick={onClose}
                 className="text-muted hover:text-secondary transition-colors"
+                aria-label="Close"
               >
                 <X className="w-6 h-6" />
               </button>

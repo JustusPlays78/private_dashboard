@@ -59,6 +59,38 @@ const TaskModal: React.FC<TaskModalProps> = ({
     setNewSubtaskTitle('');
   }, [task, isOpen]);
 
+  // Handle modal close properly
+  const handleModalClose = () => {
+    // Check if there are unsaved changes
+    const hasChanges = isCreateMode
+      ? formData.title.trim() !== '' ||
+        formData.description.trim() !== '' ||
+        formData.due_date !== ''
+      : task &&
+        (formData.title !== task.title ||
+          formData.description !== (task.description || '') ||
+          formData.due_date !==
+            (task.due_date
+              ? new Date(task.due_date).toISOString().slice(0, 16)
+              : '') ||
+          formData.completed !== task.completed ||
+          subtasks.length !== (task.subtasks?.length || 0));
+
+    if (hasChanges) {
+      // If there are changes, confirm before closing
+      if (
+        confirm(
+          'Es gibt ungespeicherte Änderungen. Möchtest du wirklich schließen?'
+        )
+      ) {
+        handleCancel();
+      }
+    } else {
+      // No changes, close directly
+      handleCancel();
+    }
+  };
+
   const handleSave = async () => {
     if (!formData.title.trim()) return;
 
@@ -84,7 +116,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
         onClose();
       } else if (task) {
         // Update existing task
-        const updatedTask = await tasksApi.update(task.id, {
+        await tasksApi.update(task.id, {
           title: formData.title,
           description: formData.description || undefined,
           due_date: formData.due_date || undefined,
@@ -150,7 +182,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     console.log('TaskModal - Toggling subtask:', subtask); // Debug
 
     try {
-      const updatedSubtask = await tasksApi.updateSubtask(task.id, subtask.id, {
+      await tasksApi.updateSubtask(task.id, subtask.id, {
         completed: !subtask.completed,
       });
 
@@ -211,7 +243,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={handleCancel}
+      onClose={handleModalClose}
       title={getModalTitle()}
       size="lg"
     >

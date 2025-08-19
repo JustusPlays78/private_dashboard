@@ -47,6 +47,8 @@ export interface ScriptVariable {
   type: 'text' | 'password' | 'number' | 'url';
 }
 
+export type NewScriptVariable = Omit<ScriptVariable, 'id'>;
+
 export interface ScriptExecution {
   script_id: string;
   variables: { [key: string]: string };

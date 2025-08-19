@@ -85,6 +85,17 @@ const NoteModal: React.FC<NoteModalProps> = ({
     }
   }, [isOpen, isEditing]);
 
+  // Handle modal close properly
+  const handleModalClose = () => {
+    // If in edit mode, just cancel editing
+    if (isEditing) {
+      handleCancelEdit();
+    } else {
+      // If in view mode, close directly
+      onClose();
+    }
+  };
+
   const handleEdit = () => {
     setIsEditing(true);
     setTimeout(() => {
@@ -173,7 +184,7 @@ const NoteModal: React.FC<NoteModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={handleCancelEdit}
+      onClose={handleModalClose}
       title={getModalTitle()}
       size="3xl"
     >
