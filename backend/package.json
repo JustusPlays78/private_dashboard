@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "nodemon src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "build:frontend": "cd ../frontend && npm run build",
+    "build:all": "npm run build:frontend && npm run build",
+    "start:production": "cross-env NODE_ENV=production npm run build:all && npm start",
+    "preview": "cross-env NODE_ENV=production npm start"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -21,6 +25,7 @@
     "@types/node": "^20.4.5",
     "typescript": "^5.1.6",
     "nodemon": "^3.0.1",
-    "ts-node": "^10.9.1"
+    "ts-node": "^10.9.1",
+    "cross-env": "^7.0.3"
   }
 }
