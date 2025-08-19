@@ -1,6 +1,8 @@
-import {Note, Task, Subtask, Script, ScriptResult} from './types';
+import {Note, Task, Subtask, Script, ScriptResult, ScriptVariable} from './types';
 
-const API_URL = /*import.meta.env.VITE_API_URL ||*/ 'http://localhost:3001/api';
+const API_URL  = import.meta.env.PROD
+    ? '/api'
+    : 'http://localhost:3001/api';
 
 // Notes API
 export const notesApi = {
