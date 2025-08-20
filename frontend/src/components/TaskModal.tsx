@@ -390,9 +390,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
               </button>
             </div>
           )}
-
-          {/* Subtasks List */}
-          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {/* Subtasks List */}
+            <div className="space-y-2">
             {subtasks.length === 0 ? (
               <div className="text-center py-4 text-muted text-sm">
                 {isCreateMode
