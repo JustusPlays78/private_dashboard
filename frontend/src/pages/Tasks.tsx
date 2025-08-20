@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, CheckSquare, Calendar } from 'lucide-react';
-import { tasksApi } from '../api';
+import { tasksApi } from '../api/api';
 import { Task } from '../types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, Trash2, Edit, X } from 'lucide-react';
 import Modal from './Modal';
 import { Note } from '../types';
-import { notesApi } from '../api';
+import { notesApi } from '../api/api';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 

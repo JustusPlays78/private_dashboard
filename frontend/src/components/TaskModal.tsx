@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, Plus, Trash2, CheckSquare, Calendar, X } from 'lucide-react';
 import Modal from './Modal';
 import { Task, Subtask } from '../types';
-import { tasksApi } from '../api';
+import { tasksApi } from '../api/api';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 

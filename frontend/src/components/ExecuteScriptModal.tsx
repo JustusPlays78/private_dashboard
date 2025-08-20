@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import Modal from './Modal';
 import { Script, ScriptResult } from '../types';
-import { scriptsApi } from '../api';
+import { scriptsApi } from '../api/scriptsApi';
 
 interface ExecuteScriptModalProps {
   isOpen: boolean;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2 } from 'lucide-react';
-import { notesApi } from '../api';
+import { notesApi } from '../api/api';
 import { Note } from '../types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';

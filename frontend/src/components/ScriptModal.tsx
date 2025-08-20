@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, Trash2, Plus } from 'lucide-react';
 import Modal from './Modal';
 import { NewScriptVariable, Script } from '../types';
-import { scriptsApi } from '../api';
+import { scriptsApi } from '../api/scriptsApi';
 
 interface ScriptModalProps {
   isOpen: boolean;

@@ -8,7 +8,7 @@ import {
   Edit,
   Clock,
 } from 'lucide-react';
-import { notesApi, tasksApi } from '../api';
+import { notesApi, tasksApi } from '../api/api';
 import { Note, Task } from '../types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';

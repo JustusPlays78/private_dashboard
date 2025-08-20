@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Play, Terminal, FileText } from 'lucide-react';
-import { scriptsApi } from '../api';
+import { scriptsApi } from '../api/scriptsApi';
 import { Script } from '../types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
