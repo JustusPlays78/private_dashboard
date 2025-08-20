@@ -60,3 +60,15 @@ export interface ScriptResult {
   variables_used: { [key: string]: string };
   executed_at: string;
 }
+
+export interface SecretMeta {
+  name: string;
+  created_at: string;
+  updated_at: string;
+  due_date?: string;
+}
+
+export interface SecretValue {
+  name: string;
+  value: string;
+}

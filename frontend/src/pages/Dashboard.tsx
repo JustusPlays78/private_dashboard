@@ -14,12 +14,14 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import TaskModal from '../components/TaskModal';
 import NoteModal from '../components/NoteModal';
+import { useNotifications } from '../hooks/useNotifications';
 
 const Dashboard: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const { notifications } = useNotifications();
 
   // Modal states
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -427,7 +429,27 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+        {/* Notifications strip */}
+       <div className="mt-6">
+         <div className="card p-3 overflow-x-auto">
+           {notifications.length === 0 ? (
+              <div className="text-sm text-muted">Keine aktuellen Benachrichtigungen</div>
+           ) : (
+             <div className="flex space-x-4 whitespace-nowrap">
+               {notifications.map((n) => (
+                 <div key={n.id} className="text-sm px-3 py-1 rounded border border-accent">
+                   <span className="font-medium" style={{ color: n.type === 'task' ? 'var(--accent-yellow)' : 'var(--accent-blue)' }}>
+                     {n.type === 'task' ? 'Task' : 'Secret'}
+                   </span>{' '}
+                   {n.title} überfällig seit {format(new Date(n.due), 'dd.MM.yyyy HH:mm', { locale: de })}
+                 </div>
+               ))}
+             </div>
+           )}
+         </div>
+       </div>
       </div>
+       
 
       {/* Modals */}
       <TaskModal

@@ -5,6 +5,7 @@ import { initDatabase } from './database';
 import notesRouter from './routes/notes';
 import tasksRouter from './routes/tasks';
 import scriptsRouter from './routes/scripts';
+import secretsRouter from './routes/secrets';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -39,6 +40,7 @@ app.use(express.json({ limit: '10mb' })); // Erhöht für größere Scripts
 app.use('/api/notes', notesRouter);
 app.use('/api/tasks', tasksRouter);
 app.use('/api/scripts', scriptsRouter);
+app.use('/api/secrets', secretsRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

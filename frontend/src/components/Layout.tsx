@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, FileText, CheckSquare, Terminal } from 'lucide-react';
+import { Home, FileText, CheckSquare, Terminal, Lock, Bell } from 'lucide-react';
+import { useNotifications } from '../hooks/useNotifications';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,6 +11,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
+  const { unreadCount } = useNotifications();
 
   return (
     <div
@@ -127,13 +129,50 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Terminal className="w-4 h-4 mr-2" />
                   Scripts
                 </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">{children}</main>
-    </div>
+                <Link
+                  to="/secrets"
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
+                    isActive('/secrets')
+                      ? 'text-primary'
+                      : 'border-transparent text-secondary hover:text-primary'
+                  }`}
+                  style={
+                    isActive('/secrets')
+                      ? { borderColor: 'var(--accent-blue-light)' }
+                      : {}
+                  }
+                  onMouseEnter={(e) =>
+                    !isActive('/secrets') &&
+                    (e.currentTarget.style.borderColor =
+                      'var(--border-secondary)')
+                  }
+                  onMouseLeave={(e) =>
+                    !isActive('/secrets') &&
+                    (e.currentTarget.style.borderColor = 'transparent')
+                  }
+                >
+                  <Lock className="w-4 h-4 mr-2" />
+                  Secrets
+                </Link>
+                </div>
+			</div>
+			<div className="flex items-center">
+				<div className="relative">
+					<Bell className="w-5 h-5 text-secondary" />
+					{unreadCount > 0 && (
+						<span className="absolute -top-2 -right-2 text-xs rounded-full px-1.5 py-0.5"
+						style={{ backgroundColor: 'var(--accent-red)', color: 'white' }}
+						>
+							{unreadCount}
+						</span>
+					)}
+				</div>
+			</div>
+		</div>
+	</div>
+</nav>
+<main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">{children}</main>
+</div>
   );
 };
 
