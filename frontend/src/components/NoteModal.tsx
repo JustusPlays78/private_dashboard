@@ -234,7 +234,7 @@ const NoteModal: React.FC<NoteModalProps> = ({
             </div>
           ) : (
             <div
-              className="rounded-lg p-4 border border-accent max-h-96 overflow-y-auto"
+              className="rounded-lg p-4 border border-accent"
               style={{ backgroundColor: 'var(--bg-tertiary)' }}
             >
               <div className="text-primary leading-relaxed break-words whitespace-pre-wrap">
