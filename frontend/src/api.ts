@@ -7,7 +7,6 @@ import {
   ScriptVariable,
 } from './types';
 
-// @ts-ignore
 const API_URL = !import.meta.env.PROD ? 'http://localhost:3001/api' : '/api';
 
 // Notes API
@@ -203,7 +202,7 @@ export const scriptsApi = {
     return response.json();
   },
 
-  getExecutions: async (id: string): Promise<any[]> => {
+  getExecutions: async (id: string): Promise<unknown[]> => {
     const response = await fetch(`${API_URL}/scripts/${id}/executions`);
     if (!response.ok) throw new Error('Failed to fetch executions');
     return response.json();

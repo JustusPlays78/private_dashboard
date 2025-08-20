@@ -16,8 +16,6 @@ const Modal: React.FC<ModalProps> = ({
   children,
   size = 'md',
 }) => {
-  if (!isOpen) return null;
-
   const sizeClasses = {
     sm: 'max-w-md',
     md: 'max-w-lg',
@@ -29,8 +27,10 @@ const Modal: React.FC<ModalProps> = ({
 
   // Handle ESC key press
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) {
+      if (event.key === 'Escape') {
         onClose();
       }
     };
@@ -40,6 +40,8 @@ const Modal: React.FC<ModalProps> = ({
       document.removeEventListener('keydown', handleEscKey);
     };
   }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
