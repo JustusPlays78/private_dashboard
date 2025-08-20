@@ -122,24 +122,32 @@ export const initDatabase = () => {
 			// Secrets table
 			db.run(`
 				CREATE TABLE IF NOT EXISTS secrets (
-				  name TEXT PRIMARY KEY,
-				  value BLOB NOT NULL,
-				  iv BLOB NOT NULL,
-				  tag BLOB NOT NULL,
-				  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-				  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+					name TEXT PRIMARY KEY,
+					value BLOB NOT NULL,
+					iv BLOB NOT NULL,
+					tag BLOB NOT NULL,
+					due_date DATETIME,
+					created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 				)
 			`);
+
+			// ensure column due_date exists on older DBs
+			db.run('ALTER TABLE secrets ADD COLUMN due_date DATETIME', (err) => {
+				if (err && !/duplicate column name/i.test(String(err?.message))) {
+					console.warn('ALTER TABLE secrets ADD COLUMN due_date failed:', err);
+				}
+			});
 
 			// Script executions table (optional - for history)
 			db.run(`
 				CREATE TABLE IF NOT EXISTS script_executions (
-				                                                                 id TEXT PRIMARY KEY,
-				                                                                 script_id TEXT NOT NULL,
-				                                                                 variables_used TEXT,
-				                                                                 processed_content TEXT NOT NULL,
-				                                                                 executed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-				                                                                 FOREIGN KEY (script_id) REFERENCES scripts (id) ON DELETE CASCADE
+					id TEXT PRIMARY KEY,
+					script_id TEXT NOT NULL,
+					variables_used TEXT,
+					processed_content TEXT NOT NULL,
+					executed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					FOREIGN KEY (script_id) REFERENCES scripts (id) ON DELETE CASCADE
 					)
 			`, (err) => {
                 if (err) {
@@ -154,13 +162,13 @@ export const initDatabase = () => {
     });
 };
 
-export async function setSecret(name: string, value: string): Promise<void> {
+export async function setSecret(name: string, value: string, dueDate?: string | null): Promise<void> {
 	const { enc, iv, tag } = encrypt(value);
 	await dbRun(
-		`INSERT INTO secrets (name, value, iv, tag, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM secrets WHERE name = ?), CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
-		 ON CONFLICT(name) DO UPDATE SET value = excluded.value, iv = excluded.iv, tag = excluded.tag, updated_at = excluded.updated_at`,
-		[name, enc, iv, tag, name]
+		`INSERT INTO secrets (name, value, iv, tag, due_date, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM secrets WHERE name = ?), CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+		 ON CONFLICT(name) DO UPDATE SET value = excluded.value, iv = excluded.iv, tag = excluded.tag, due_date = excluded.due_date, updated_at = excluded.updated_at`,
+		[name, enc, iv, tag, dueDate ?? null, name]
 	);
 }
 

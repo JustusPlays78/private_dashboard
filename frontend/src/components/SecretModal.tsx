@@ -2,6 +2,16 @@ import React, { useEffect, useState } from 'react';
 import Modal from './Modal';
 import { secretsApi } from '../api/secretsApi';
 
+function toLocalDatetimeInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const HH = pad(d.getHours());
+  const MM = pad(d.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${HH}:${MM}`;
+}
 interface SecretModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -9,7 +19,12 @@ interface SecretModalProps {
   onSaved: (name: string) => void;
 }
 
-const SecretModal: React.FC<SecretModalProps> = ({ isOpen, onClose, secretName, onSaved }) => {
+const SecretModal: React.FC<SecretModalProps> = ({
+  isOpen,
+  onClose,
+  secretName,
+  onSaved,
+}) => {
   const isEdit = !!secretName;
   const [name, setName] = useState<string>(secretName || '');
   const [value, setValue] = useState<string>('');
@@ -31,7 +46,10 @@ const SecretModal: React.FC<SecretModalProps> = ({ isOpen, onClose, secretName, 
       setLoading(true);
       secretsApi
         .get(secretName)
-        .then((s) => setValue(s.value))
+        .then((s) => {
+          setValue(s.value);
+          if (s.due_date) setDue(toLocalDatetimeInput(s.due_date));
+        })
         .catch(() => setValue(''))
         .finally(() => setLoading(false));
     }
@@ -62,7 +80,12 @@ const SecretModal: React.FC<SecretModalProps> = ({ isOpen, onClose, secretName, 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? 'Secret bearbeiten' : 'Neues Secret'} size="sm">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEdit ? 'Secret bearbeiten' : 'Neues Secret'}
+      size="sm"
+    >
       <div className="space-y-4">
         <div>
           <label className="block text-sm text-secondary mb-1">Name</label>
@@ -85,17 +108,29 @@ const SecretModal: React.FC<SecretModalProps> = ({ isOpen, onClose, secretName, 
               className="input-field flex-1"
               placeholder="geheimer Wert"
             />
-            <button className="btn-secondary" onClick={() => setShow((s) => !s)} type="button">
+            <button
+              className="btn-secondary"
+              onClick={() => setShow((s) => !s)}
+              type="button"
+            >
               {show ? 'Hide' : 'Show'}
             </button>
-            <button className="btn-secondary" onClick={handleCopy} type="button">
+            <button
+              className="btn-secondary"
+              onClick={handleCopy}
+              type="button"
+            >
               {copied ? 'Kopiert!' : 'Copy'}
             </button>
           </div>
-          {isEdit && loading && <p className="text-xs text-muted mt-1">Lade aktuellen Wert…</p>}
+          {isEdit && loading && (
+            <p className="text-xs text-muted mt-1">Lade aktuellen Wert…</p>
+          )}
         </div>
         <div>
-          <label className="block text-sm text-secondary mb-1">Fälligkeitsdatum (optional)</label>
+          <label className="block text-sm text-secondary mb-1">
+            Fälligkeitsdatum (optional)
+          </label>
           <input
             type="datetime-local"
             className="input-field w-full"
@@ -107,7 +142,9 @@ const SecretModal: React.FC<SecretModalProps> = ({ isOpen, onClose, secretName, 
           </p>
         </div>
         <div className="flex justify-end space-x-2 pt-2 border-t border-accent">
-          <button className="btn-secondary" onClick={onClose} type="button">Abbrechen</button>
+          <button className="btn-secondary" onClick={onClose} type="button">
+            Abbrechen
+          </button>
           <button
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={handleSave}

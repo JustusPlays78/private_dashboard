@@ -1,8 +1,4 @@
-import {
-  Note,
-  Task,
-  Subtask,
-} from '../types';
+import { Note, Task, Subtask } from '../types';
 
 // @ts-ignore
 const API_URL = !import.meta.env.PROD ? 'http://localhost:3001/api' : '/api';
@@ -118,4 +114,3 @@ export const tasksApi = {
     });
   },
 };
-

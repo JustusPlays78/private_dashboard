@@ -1,6 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, FileText, CheckSquare, Terminal, Lock, Bell } from 'lucide-react';
+import {
+  Home,
+  FileText,
+  CheckSquare,
+  Terminal,
+  Lock,
+  Bell,
+} from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
 
 interface LayoutProps {
@@ -154,25 +161,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Lock className="w-4 h-4 mr-2" />
                   Secrets
                 </Link>
-                </div>
-			</div>
-			<div className="flex items-center">
-				<div className="relative">
-					<Bell className="w-5 h-5 text-secondary" />
-					{unreadCount > 0 && (
-						<span className="absolute -top-2 -right-2 text-xs rounded-full px-1.5 py-0.5"
-						style={{ backgroundColor: 'var(--accent-red)', color: 'white' }}
-						>
-							{unreadCount}
-						</span>
-					)}
-				</div>
-			</div>
-		</div>
-	</div>
-</nav>
-<main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">{children}</main>
-</div>
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="relative">
+                <Bell className="w-5 h-5 text-secondary" />
+                {unreadCount > 0 && (
+                  <span
+                    className="absolute -top-2 -right-2 text-xs rounded-full px-1.5 py-0.5"
+                    style={{
+                      backgroundColor: 'var(--accent-red)',
+                      color: 'white',
+                    }}
+                  >
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">{children}</main>
+    </div>
   );
 };
 

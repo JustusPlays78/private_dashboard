@@ -21,42 +21,43 @@ function dbRun(sql: string, params: any[] = []): Promise<void> {
 
 // List only names and timestamps (no values)
 router.get('/', async (req, res) => {
-    try {
-        const rows = await dbAll<{ name: string; created_at: string; updated_at: string }>(
-            'SELECT name, created_at, updated_at FROM secrets ORDER BY name'
-        );
-        res.json(rows);
-    } catch (e) {
-        console.error('Error listing secrets:', e);
-        res.status(500).json({ error: 'Failed to list secrets' });
-    }
+	try {
+		const rows = await dbAll<{ name: string; created_at: string; updated_at: string; due_date?: string }>(
+			'SELECT name, created_at, updated_at, due_date FROM secrets ORDER BY name'
+		);
+		res.json(rows);
+	} catch (e) {
+		console.error('Error listing secrets:', e);
+		res.status(500).json({ error: 'Failed to list secrets' });
+	}
 });
 
 // Get decrypted secret value
 router.get('/:name', async (req, res) => {
-    try {
-        const value = await getSecret(req.params.name);
-        if (!value) return res.status(404).json({ error: 'Secret not found' });
-        res.json({ name: req.params.name, value });
-    } catch (e) {
-        console.error('Error getting secret:', e);
-        res.status(500).json({ error: 'Failed to get secret' });
-    }
+	try {
+		const meta = await dbAll<{ due_date?: string }>('SELECT due_date FROM secrets WHERE name = ?', [req.params.name]);
+		const value = await getSecret(req.params.name);
+		if (!value) return res.status(404).json({ error: 'Secret not found' });
+		res.json({ name: req.params.name, value, due_date: meta[0]?.due_date ?? null });
+	} catch (e) {
+		console.error('Error getting secret:', e);
+		res.status(500).json({ error: 'Failed to get secret' });
+	}
 });
 
 // Create/Update secret
 router.put('/:name', async (req, res) => {
-    try {
-        const { value } = req.body || {};
-        if (typeof value !== 'string' || value.length === 0) {
-            return res.status(400).json({ error: 'Body must contain non-empty "value"' });
-        }
-        await setSecret(req.params.name, value);
-        res.status(204).send();
-    } catch (e) {
-        console.error('Error setting secret:', e);
-        res.status(500).json({ error: 'Failed to set secret' });
-    }
+	try {
+		const { value, due_date } = req.body || {};
+		if (typeof value !== 'string' || value.length === 0) {
+			return res.status(400).json({ error: 'Body must contain non-empty "value"' });
+		}
+		await setSecret(req.params.name, value, due_date ?? null);
+		res.status(204).send();
+	} catch (e) {
+		console.error('Error setting secret:', e);
+		res.status(500).json({ error: 'Failed to set secret' });
+	}
 });
 
 // Delete secret

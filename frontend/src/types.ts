@@ -71,4 +71,5 @@ export interface SecretMeta {
 export interface SecretValue {
   name: string;
   value: string;
+  due_date?: string;
 }

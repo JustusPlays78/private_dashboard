@@ -20,7 +20,10 @@ export function useNotifications() {
     let mounted = true;
     (async () => {
       try {
-        const [t, s] = await Promise.all([tasksApi.getAll(), secretsApi.getAll()]);
+        const [t, s] = await Promise.all([
+          tasksApi.getAll(),
+          secretsApi.getAll(),
+        ]);
         if (!mounted) return;
         setTasks(t);
         setSecrets(s);
@@ -58,7 +61,9 @@ export function useNotifications() {
       }
     }
     // newest overdue first
-    return n.sort((a, b) => new Date(b.due).getTime() - new Date(a.due).getTime());
+    return n.sort(
+      (a, b) => new Date(b.due).getTime() - new Date(a.due).getTime()
+    );
   }, [tasks, secrets]);
 
   return {

@@ -53,7 +53,10 @@ const Secrets: React.FC = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2" style={{ borderColor: 'var(--accent-blue)' }}></div>
+        <div
+          className="animate-spin rounded-full h-32 w-32 border-b-2"
+          style={{ borderColor: 'var(--accent-blue)' }}
+        ></div>
       </div>
     );
   }
@@ -63,7 +66,9 @@ const Secrets: React.FC = () => {
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">Secrets</h1>
-          <p className="mt-2 text-secondary">Verwalte verschlüsselte Schlüssel/Werte</p>
+          <p className="mt-2 text-secondary">
+            Verwalte verschlüsselte Schlüssel/Werte
+          </p>
         </div>
         <button onClick={onCreate} className="btn-primary flex items-center">
           <Plus className="w-4 h-4 mr-2" />
@@ -75,26 +80,44 @@ const Secrets: React.FC = () => {
         {items.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted mb-4">Noch keine Secrets</p>
-            <button onClick={onCreate} className="btn-primary flex items-center mx-auto">
+            <button
+              onClick={onCreate}
+              className="btn-primary flex items-center mx-auto"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Erstes Secret erstellen
             </button>
           </div>
         ) : (
           items.map((s) => {
-            const isOverdue = s.due_date ? new Date(s.due_date) < new Date() : false;
+            const isOverdue = s.due_date
+              ? new Date(s.due_date) < new Date()
+              : false;
             return (
-              <div key={s.name} className="card card-hover p-4 cursor-pointer" onClick={() => onEdit(s.name)}>
+              <div
+                key={s.name}
+                className="card card-hover p-4 cursor-pointer"
+                onClick={() => onEdit(s.name)}
+              >
                 <div className="flex justify-between items-center">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-medium text-primary truncate">{s.name}</h3>
+                    <h3 className="text-lg font-medium text-primary truncate">
+                      {s.name}
+                    </h3>
                     <p className="text-sm text-muted mt-1">
                       Aktualisiert:{' '}
-                      {format(new Date(s.updated_at), 'dd.MM.yyyy HH:mm', { locale: de })}
+                      {format(new Date(s.updated_at), 'dd.MM.yyyy HH:mm', {
+                        locale: de,
+                      })}
                     </p>
                     {s.due_date && (
-                      <p className={`text-xs mt-1 ${isOverdue ? 'text-red-400' : 'text-muted'}`}>
-                        Fällig: {format(new Date(s.due_date), 'dd.MM.yyyy HH:mm', { locale: de })}
+                      <p
+                        className={`text-xs mt-1 ${isOverdue ? 'text-red-400' : 'text-muted'}`}
+                      >
+                        Fällig:{' '}
+                        {format(new Date(s.due_date), 'dd.MM.yyyy HH:mm', {
+                          locale: de,
+                        })}
                       </p>
                     )}
                   </div>
@@ -106,18 +129,27 @@ const Secrets: React.FC = () => {
                       }}
                       className="p-2 text-muted hover:text-secondary transition-colors rounded-md hover:bg-opacity-10"
                       style={{ backgroundColor: 'transparent' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.backgroundColor =
+                          'var(--bg-tertiary)')
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.backgroundColor = 'transparent')
+                      }
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={(e) => onDelete(s.name, e)}
                       className="p-2 text-muted transition-colors rounded-md hover:bg-opacity-10"
-                      style={{ color: 'var(--accent-red)', backgroundColor: 'transparent' }}
+                      style={{
+                        color: 'var(--accent-red)',
+                        backgroundColor: 'transparent',
+                      }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.color = 'var(--accent-red-hover)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                        e.currentTarget.style.backgroundColor =
+                          'var(--bg-tertiary)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.color = 'var(--accent-red)';
