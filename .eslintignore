@@ -1,0 +1,8 @@
+node_modules/
+dist/
+release/
+build/
+*.js
+!.eslintrc.js
+webpack.config.js
+tailwind.config.js
