@@ -3,6 +3,7 @@
 .vscode/
 node_modules/
 dist/
+release/
 .env
 .DS_Store
 npm-debug.log
@@ -16,3 +17,6 @@ coverage/
 *.bak
 *.tmp
 *.old
+
+# ESLint
+eslint-results.sarif
