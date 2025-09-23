@@ -1,0 +1,72 @@
+[
+  {
+    "version": "1.0.0",
+    "date": "2025-09-23",
+    "changes": [
+      {
+        "type": "added",
+        "description": "Complete Electron desktop application for local task and secret management"
+      },
+      {
+        "type": "added",
+        "description": "Password-based encryption using AES-256 with PBKDF2 key derivation for secure data storage"
+      },
+      {
+        "type": "added",
+        "description": "Task management system with status tracking (Todo, In Progress, Completed) and priority levels"
+      },
+      {
+        "type": "added",
+        "description": "Secret manager for secure storage of sensitive information like passwords and API keys"
+      },
+      {
+        "type": "added",
+        "description": "Interactive dashboard with real-time statistics and overview of tasks and secrets"
+      },
+      {
+        "type": "added",
+        "description": "Live clock with date display showing current time with seconds precision"
+      },
+      {
+        "type": "added",
+        "description": "Dark and light theme support with system preference detection"
+      },
+      {
+        "type": "added",
+        "description": "Comprehensive settings panel for user personalization (name, username, app title)"
+      },
+      {
+        "type": "added",
+        "description": "Dynamic application title that changes based on username settings"
+      },
+      {
+        "type": "added",
+        "description": "Changelog system with version tracking and 'What's New' notifications"
+      },
+      {
+        "type": "added",
+        "description": "First-time setup wizard for password creation and initial configuration"
+      },
+      {
+        "type": "added",
+        "description": "Windows executable (.exe) build with portable installation support"
+      },
+      {
+        "type": "added",
+        "description": "Local JSON-based encrypted database for offline data storage"
+      },
+      {
+        "type": "added",
+        "description": "Modern responsive UI built with React, TypeScript, and TailwindCSS"
+      },
+      {
+        "type": "added",
+        "description": "Keyboard shortcuts and accessibility features for improved user experience"
+      },
+      {
+        "type": "added",
+        "description": "Automatic data persistence and secure local storage management"
+      }
+    ]
+  }
+]
