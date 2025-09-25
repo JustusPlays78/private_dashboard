@@ -30,7 +30,7 @@ const VersionBadge: React.FC<VersionBadgeProps> = ({
   return (
     <button
       onClick={handleClick}
-      className="relative flex items-center text-xs text-gray-500 dark:text-gray-400 hover:text-dashboard-600 dark:hover:text-dashboard-400 transition-colors group"
+      className="relative flex items-center justify-center text-center text-xs text-gray-500 dark:text-gray-400 hover:text-dashboard-600 dark:hover:text-dashboard-400 transition-colors group mx-auto"
     >
       <span>V{version}</span>
       {hasNewVersion && (

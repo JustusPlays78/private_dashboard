@@ -159,6 +159,7 @@ const App: React.FC = () => {
         onLogin={handleLogin}
         isLoading={authLoading}
         error={authError}
+        onChangelogClick={() => setShowChangelog(true)}
       />
     );
   }
@@ -238,7 +239,7 @@ const App: React.FC = () => {
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
           <div className="text-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm font-medium">© 2025 Julscha</p>
+            <p className="text-center text-sm font-medium">© 2025 Julscha</p>
             <VersionBadge
               version={packageJson.version}
               onChangelogClick={() => setShowChangelog(true)}

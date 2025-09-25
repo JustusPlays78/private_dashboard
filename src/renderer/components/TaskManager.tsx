@@ -101,8 +101,10 @@ const TaskManager: React.FC<TaskManagerProps> = ({ tasks, onUpdate }) => {
     <div className="p-6 h-full overflow-y-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tasks</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Tasks
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
             Manage your tasks and stay organized
           </p>
         </div>

@@ -96,8 +96,10 @@ const SecretManager: React.FC<SecretManagerProps> = ({ secrets, onUpdate }) => {
     <div className="p-6 h-full overflow-y-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Secrets</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Secrets
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
             Securely store your sensitive information
           </p>
         </div>

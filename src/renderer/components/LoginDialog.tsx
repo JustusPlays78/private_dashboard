@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from "react";
+import VersionBadge from "./VersionBadge";
+
+const packageJson = require("../../../package.json");
 
 interface LoginDialogProps {
   onLogin: (password: string) => void;
   isLoading: boolean;
   error?: string;
+  onChangelogClick?: () => void;
 }
 
 export const LoginDialog: React.FC<LoginDialogProps> = ({
   onLogin,
   isLoading,
   error,
+  onChangelogClick = () => {},
 }) => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -224,6 +229,17 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
           <p className="text-xs text-gray-500">
             This password encrypts all your dashboard data locally
           </p>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <div className="text-center text-gray-500">
+            <p className="text-center text-sm font-medium">© 2025 Julscha</p>
+            <VersionBadge
+              version={packageJson.version}
+              onChangelogClick={onChangelogClick}
+            />
+          </div>
         </div>
       </div>
     </div>
