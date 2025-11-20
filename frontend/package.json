@@ -1,95 +1,95 @@
 {
-  "name": "terraform-dashboard",
-  "version": "1.0.0",
-  "description": "Modern Terraform AWS Deployer with Dashboard",
-  "main": "dist-electron/main.cjs",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
-    "build:electron": "node build-electron.mjs",
-    "build:backend": "cd ../backend && go build -ldflags=\"-s -w\" -o bin/terraform-dashboard.exe cmd/main.go",
-    "build:backend:dev": "cd ../backend && go build -ldflags=\"-s -w\" -o cmd/terraform-dashboard-backend.exe cmd/main.go",
-    "preview": "vite preview",
-    "electron:dev": "npm run build:backend:dev && npm run build:electron && concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
-    "electron:build": "npm run build:backend && npm run build:electron && vite build && electron-builder"
-  },
-  "keywords": [
-    "terraform",
-    "aws",
-    "dashboard",
-    "electron"
-  ],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
-    "@vitejs/plugin-react": "^5.1.0",
-    "autoprefixer": "^10.4.21",
-    "concurrently": "^9.2.1",
-    "cross-env": "^10.1.0",
-    "electron": "^39.1.0",
-    "electron-builder": "^26.0.12",
-    "esbuild": "^0.25.12",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.16",
-    "typescript": "^5.9.3",
-    "vite": "^7.2.1"
-  },
-  "dependencies": {
-    "@tailwindcss/postcss": "^4.1.16",
-    "lucide-react": "^0.552.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-router-dom": "^7.9.5",
-    "wait-on": "^9.0.1"
-  },
-  "build": {
-    "appId": "com.terraformdashboard.app",
-    "productName": "Terraform Dashboard",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "!node_modules/**/*"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "artifactName": "${productName}-${version}-${arch}.${ext}",
-      "signAndEditExecutable": false,
-      "signExts": []
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Terraform Dashboard"
-    },
-    "extraResources": [
-      {
-        "from": "../backend/bin/",
-        "to": "backend",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ]
-  }
+    "name":  "dashboard",
+    "version":  "1.0.0",
+    "description":  "Dashboard",
+    "main":  "dist-electron/main.cjs",
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "vite",
+                    "build":  "tsc \u0026\u0026 vite build \u0026\u0026 electron-builder",
+                    "build:electron":  "node build-electron.mjs",
+                    "build:backend":  "cd ../backend \u0026\u0026 go build -ldflags=\"-s -w\" -o bin/dashboard.exe cmd/main.go",
+                    "build:backend:dev":  "cd ../backend \u0026\u0026 go build -ldflags=\"-s -w\" -o cmd/dashboard-backend.exe cmd/main.go",
+                    "preview":  "vite preview",
+                    "electron:dev":  "npm run build:backend:dev \u0026\u0026 npm run build:electron \u0026\u0026 concurrently \"vite\" \"wait-on tcp:5173 \u0026\u0026 electron .\"",
+                    "electron:build":  "npm run build:backend \u0026\u0026 npm run build:electron \u0026\u0026 vite build \u0026\u0026 electron-builder"
+                },
+    "keywords":  [
+                     "dashboard",
+                     "electron"
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "devDependencies":  {
+                            "@types/react":  "^19.2.2",
+                            "@types/react-dom":  "^19.2.2",
+                            "@vitejs/plugin-react":  "^5.1.0",
+                            "autoprefixer":  "^10.4.21",
+                            "concurrently":  "^9.2.1",
+                            "cross-env":  "^10.1.0",
+                            "electron":  "^39.1.0",
+                            "electron-builder":  "^26.0.12",
+                            "esbuild":  "^0.25.12",
+                            "postcss":  "^8.5.6",
+                            "tailwindcss":  "^4.1.16",
+                            "typescript":  "^5.9.3",
+                            "vite":  "^7.2.1"
+                        },
+    "dependencies":  {
+                         "@tailwindcss/postcss":  "^4.1.16",
+                         "lucide-react":  "^0.552.0",
+                         "react":  "^19.2.0",
+                         "react-dom":  "^19.2.0",
+                         "react-router-dom":  "^7.9.5",
+                         "wait-on":  "^9.0.1"
+                     },
+    "build":  {
+                  "appId":  "com.dashboard.app",
+                  "productName":  "Dashboard",
+                  "directories":  {
+                                      "output":  "release"
+                                  },
+                  "files":  [
+                                "dist/**/*",
+                                "dist-electron/**/*",
+                                "!node_modules/**/*"
+                            ],
+                  "win":  {
+                              "target":  [
+                                             {
+                                                 "target":  "nsis",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             },
+                                             {
+                                                 "target":  "portable",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             }
+                                         ],
+                              "artifactName":  "${productName}-${version}-${arch}.${ext}",
+                              "signAndEditExecutable":  false,
+                              "signExts":  [
+
+                                           ]
+                          },
+                  "nsis":  {
+                               "oneClick":  false,
+                               "allowToChangeInstallationDirectory":  true,
+                               "createDesktopShortcut":  true,
+                               "createStartMenuShortcut":  true,
+                               "shortcutName":  "Dashboard"
+                           },
+                  "extraResources":  [
+                                         {
+                                             "from":  "../backend/bin/",
+                                             "to":  "backend",
+                                             "filter":  [
+                                                            "**/*"
+                                                        ]
+                                         }
+                                     ]
+              }
 }
