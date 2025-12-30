@@ -7,6 +7,10 @@ import TerraformDeployer from './pages/TerraformDeployer'
 import ProjectDetails from './pages/ProjectDetails'
 import GitLabIntegration from './pages/GitLabIntegration'
 import Settings from './pages/Settings'
+import NotesCanvas from './pages/NotesCanvas'
+import ZabbixViewer from './pages/ZabbixViewer'
+import IFrameSettings from './pages/IFrameSettings'
+import IFrameViewer from './pages/IFrameViewer'
 import { useSession } from './hooks/useSession'
 
 function App() {
@@ -96,7 +100,11 @@ function App() {
           <Route path="terraform" element={<TerraformDeployer />} />
           <Route path="terraform/project/:projectId" element={<ProjectDetails />} />
           <Route path="gitlab" element={<GitLabIntegration />} />
+          <Route path="notes" element={<NotesCanvas />} />
+          <Route path="zabbix" element={<ZabbixViewer />} />
+          <Route path="iframe/:id" element={<IFrameViewer />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="settings/iframes" element={<IFrameSettings />} />
         </Route>
       </Routes>
     </Router>

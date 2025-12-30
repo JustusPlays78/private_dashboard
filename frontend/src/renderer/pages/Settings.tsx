@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Key, Save, CheckCircle, AlertCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Save, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Settings() {
   const [awsAccessKeyId, setAwsAccessKeyId] = useState('');
@@ -89,6 +90,24 @@ export default function Settings() {
           Settings
         </h2>
         <p className="text-slate-400">Configure global AWS credentials and other settings</p>
+      </div>
+
+      {/* Quick Links */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <Link
+          to="/settings/iframes"
+          className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:bg-slate-750 hover:border-blue-500/50 transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+              <ExternalLink className="w-6 h-6 text-blue-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white">IFrame Seiten</h3>
+              <p className="text-sm text-slate-400">Verwalte eigene IFrame-Seiten</p>
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* Messages */}

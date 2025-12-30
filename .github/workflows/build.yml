@@ -1,0 +1,78 @@
+name: Build
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-backend:
+    name: Build Backend
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build Backend
+        run: |
+          cd backend
+          go build -ldflags="-s -w" -o bin/dashboard.exe cmd/main.go
+
+      - name: Upload Backend Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/bin/dashboard.exe
+          retention-days: 7
+
+  build-frontend:
+    name: Build Frontend
+    runs-on: windows-latest
+    needs: build-backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Download Backend Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/bin
+
+      - name: Install Dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build Electron App
+        run: |
+          cd frontend
+          npm run build:electron
+          npm run build
+
+      - name: Package Application
+        run: |
+          cd frontend
+          npm run electron:build
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-build
+          path: |
+            frontend/release/*.exe
+            frontend/release/*.blockmap
+          retention-days: 7

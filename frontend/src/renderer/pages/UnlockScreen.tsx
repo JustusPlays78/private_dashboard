@@ -47,7 +47,7 @@ export default function UnlockScreen({ isFirstRun, onUnlock }: UnlockScreenProps
             <Shield className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
-            Terraform Dashboard
+            Dashboard
           </h1>
           <p className="text-muted-foreground mt-2">
             {isFirstRun ? 'Set your master password' : 'Enter your master password'}

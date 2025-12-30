@@ -204,7 +204,7 @@ export default function Dashboard() {
         </div>
 
         {/* Info Banner */}
-        <div className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-primary/10 border border-primary/20 rounded-xl p-6">
+        <div className="bg-gradient-to-r from-primary/10 via-blue-500/10 to-primary/10 border border-primary/20 rounded-xl p-6">
           <div className="flex items-start gap-4">
             <div className="p-2 bg-primary/20 rounded-lg">
               <AlertCircle className="w-6 h-6 text-primary" />

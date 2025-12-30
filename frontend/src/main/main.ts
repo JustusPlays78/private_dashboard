@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, BrowserView } from 'electron'
 import path from 'path'
 import { spawn, ChildProcess } from 'child_process'
 
@@ -7,6 +7,8 @@ declare const __dirname: string
 
 let mainWindow: BrowserWindow | null = null
 let backendProcess: ChildProcess | null = null
+const browserViewCache = new Map<string, BrowserView>()
+let currentBrowserViewId: string | null = null
 
 const BACKEND_PORT = 8080
 
@@ -17,10 +19,10 @@ function startBackend() {
   
   if (isDev) {
     // Development: Launch backend from cmd directory
-    backendPath = path.join(__dirname, '../../backend/cmd/terraform-dashboard-backend.exe')
+    backendPath = path.join(__dirname, '../../backend/cmd/dashboard-backend.exe')
   } else {
     // Production: Launch bundled backend
-    backendPath = path.join(process.resourcesPath, 'backend', 'terraform-dashboard.exe')
+    backendPath = path.join(process.resourcesPath, 'backend', 'dashboard.exe')
   }
 
   console.log('Starting backend:', backendPath)
@@ -116,4 +118,92 @@ ipcMain.handle('backend:health', async () => {
   } catch (error) {
     return { error: 'Backend not available' }
   }
+})
+
+// BrowserView handlers for iframe pages
+ipcMain.handle('browserview:load', async (event, pageId: string, url: string, bounds: { x: number, y: number, width: number, height: number }) => {
+  if (!mainWindow) return { success: false, error: 'No main window' }
+
+  // Hide current BrowserView if different from the one we're loading
+  if (currentBrowserViewId && currentBrowserViewId !== pageId) {
+    const oldView = browserViewCache.get(currentBrowserViewId)
+    if (oldView) {
+      mainWindow.removeBrowserView(oldView)
+    }
+  }
+
+  // Check if BrowserView for this page already exists
+  let browserView = browserViewCache.get(pageId)
+  
+  if (browserView) {
+    // Reuse existing BrowserView
+    mainWindow.addBrowserView(browserView)
+    browserView.setBounds(bounds)
+    currentBrowserViewId = pageId
+    return { success: true }
+  }
+
+  // Create new BrowserView
+  browserView = new BrowserView({
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      partition: 'persist:iframe-session'
+    }
+  })
+
+  // Store in cache
+  browserViewCache.set(pageId, browserView)
+  currentBrowserViewId = pageId
+
+  mainWindow.addBrowserView(browserView)
+  browserView.setBounds(bounds)
+  browserView.setAutoResize({ width: true, height: true })
+
+  // Handle external links - open them in the same BrowserView
+  browserView.webContents.setWindowOpenHandler((details) => {
+    browserView?.webContents.loadURL(details.url).catch(console.error)
+    return { action: 'deny' }
+  })
+
+  // Handle navigation - keep all navigation within BrowserView
+  browserView.webContents.on('will-navigate', (event, url) => {
+    console.log('Navigating to:', url)
+  })
+  
+  try {
+    await browserView.webContents.loadURL(url)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+})
+
+ipcMain.handle('browserview:resize', async (event, bounds: { x: number, y: number, width: number, height: number }) => {
+  if (!currentBrowserViewId) return { success: false, error: 'No active BrowserView' }
+  const browserView = browserViewCache.get(currentBrowserViewId)
+  if (!browserView) return { success: false, error: 'BrowserView not found' }
+  browserView.setBounds(bounds)
+  return { success: true }
+})
+
+ipcMain.handle('browserview:destroy', async () => {
+  if (currentBrowserViewId && mainWindow) {
+    const browserView = browserViewCache.get(currentBrowserViewId)
+    if (browserView) {
+      mainWindow.removeBrowserView(browserView)
+      // Don't destroy, just hide - keep it cached
+    }
+    currentBrowserViewId = null
+    return { success: true }
+  }
+  return { success: false, error: 'No BrowserView to destroy' }
+})
+
+ipcMain.handle('browserview:reload', async () => {
+  if (!currentBrowserViewId) return { success: false, error: 'No active BrowserView' }
+  const browserView = browserViewCache.get(currentBrowserViewId)
+  if (!browserView) return { success: false, error: 'BrowserView not found' }
+  browserView.webContents.reload()
+  return { success: true }
 })

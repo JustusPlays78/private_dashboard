@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"dashboard/internal/crypto"
 	"database/sql"
 	"encoding/base64"
 	"errors"
@@ -12,7 +13,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"terraform-dashboard/internal/crypto"
 
 	_ "modernc.org/sqlite"
 )
@@ -41,12 +41,12 @@ func InitDB() (*Database, error) {
 	}
 
 	// Create app data directory
-	appDataDir := filepath.Join(userDataDir, "TerraformDashboard")
+	appDataDir := filepath.Join(userDataDir, "Dashboard")
 	if err := os.MkdirAll(appDataDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create app data dir: %w", err)
 	}
 
-	dbPath := filepath.Join(appDataDir, "terraform.db")
+	dbPath := filepath.Join(appDataDir, "dashboard.db")
 
 	// Check if database exists
 	_, err = os.Stat(dbPath)
@@ -77,8 +77,8 @@ func (db *Database) Initialize(masterPassword string) error {
 
 	// Get database path
 	userDataDir, _ := os.UserConfigDir()
-	appDataDir := filepath.Join(userDataDir, "TerraformDashboard")
-	dbPath := filepath.Join(appDataDir, "terraform.db")
+	appDataDir := filepath.Join(userDataDir, "Dashboard")
+	dbPath := filepath.Join(appDataDir, "dashboard.db")
 
 	// Open regular SQLite database
 	sqlDB, err := sql.Open("sqlite", dbPath)
@@ -123,8 +123,8 @@ func (db *Database) Unlock(masterPassword string) error {
 
 	// Get database path
 	userDataDir, _ := os.UserConfigDir()
-	appDataDir := filepath.Join(userDataDir, "TerraformDashboard")
-	dbPath := filepath.Join(appDataDir, "terraform.db")
+	appDataDir := filepath.Join(userDataDir, "Dashboard")
+	dbPath := filepath.Join(appDataDir, "dashboard.db")
 
 	// Open regular SQLite database
 	sqlDB, err := sql.Open("sqlite", dbPath)
@@ -254,6 +254,32 @@ func (db *Database) createTables() error {
 		started_at DATETIME NOT NULL,
 		completed_at DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS notes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		data TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS note_items (
+		id TEXT PRIMARY KEY,
+		parent_id TEXT,
+		name TEXT NOT NULL,
+		type INTEGER NOT NULL,
+		is_folder INTEGER DEFAULT 0,
+		content TEXT,
+		position INTEGER DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS zabbix_servers (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		url TEXT NOT NULL,
+		position INTEGER NOT NULL
 	);
 	`
 
@@ -414,6 +440,23 @@ func (db *Database) runMigrations() error {
 			started_at DATETIME NOT NULL,
 			completed_at DATETIME,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS notes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			data TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS note_items (
+			id TEXT PRIMARY KEY,
+			parent_id TEXT,
+			name TEXT NOT NULL,
+			type INTEGER NOT NULL,
+			is_folder INTEGER DEFAULT 0,
+			content TEXT,
+			position INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 	}
 

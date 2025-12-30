@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build Backend
+        run: |
+          cd backend
+          go build -ldflags="-s -w" -o bin/dashboard.exe cmd/main.go
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build and Package Application
+        run: |
+          cd frontend
+          npm run build:electron
+          npm run build
+          npm run electron:build
+
+      - name: Get Release Info
+        id: release_info
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Dashboard ${{ steps.release_info.outputs.tag }}
+          draft: false
+          prerelease: false
+          files: |
+            frontend/release/Dashboard-${{ steps.release_info.outputs.version }}-x64.exe
+            frontend/release/Dashboard-${{ steps.release_info.outputs.version }}-x64.exe.blockmap
+          generate_release_notes: true
+          body: |
+            ## Dashboard Release ${{ steps.release_info.outputs.tag }}
+            
+            ### Installation
+            
+            Download `Dashboard-${{ steps.release_info.outputs.version }}-x64.exe` and run the installer.
+            
+            ### Changes
+            
+            See release notes below for details.

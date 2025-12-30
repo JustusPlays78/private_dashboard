@@ -1,9 +1,9 @@
 package api
 
 import (
+	"dashboard/internal/db"
 	"net/http"
 	"strconv"
-	"terraform-dashboard/internal/db"
 
 	"github.com/gin-gonic/gin"
 )

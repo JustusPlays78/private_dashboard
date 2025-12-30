@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"terraform-dashboard/internal/db"
-	"terraform-dashboard/internal/gitlab"
+	"dashboard/internal/db"
+	"dashboard/internal/gitlab"
 
 	"github.com/gin-gonic/gin"
 )

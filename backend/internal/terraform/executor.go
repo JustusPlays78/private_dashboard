@@ -69,23 +69,61 @@ func Init(config *TerraformConfig, logCallback LogCallback) (*ExecutionResult, e
 		StartedAt: startTime,
 	}
 
-	// Build backend config URLs
-	stateURL := fmt.Sprintf("%s/api/v4/projects/%s/terraform/state/%s",
-		config.GitLabBaseURL, config.RepositoryID, config.StateName)
-	lockURL := fmt.Sprintf("%s/lock", stateURL)
+	// Backup and remove local state files if they exist
+	// This prevents "input is disabled" errors when backend config changes
+	localStateFile := filepath.Join(config.ProjectPath, "terraform.tfstate")
+	localStateBackup := filepath.Join(config.ProjectPath, ".terraform.tfstate.local.backup")
 
-	// Build arguments
-	args := []string{
-		"init",
-		"-migrate-state",
-		fmt.Sprintf("-backend-config=address=%s", stateURL),
-		fmt.Sprintf("-backend-config=lock_address=%s", lockURL),
-		fmt.Sprintf("-backend-config=unlock_address=%s", lockURL),
-		fmt.Sprintf("-backend-config=username=%s", config.GitLabUser),
-		fmt.Sprintf("-backend-config=password=%s", config.GitLabToken),
-		"-backend-config=lock_method=POST",
-		"-backend-config=unlock_method=DELETE",
-		"-backend-config=retry_wait_min=5",
+	if _, err := os.Stat(localStateFile); err == nil {
+		if logCallback != nil {
+			logCallback("[DEBUG] Backing up local state file...")
+		}
+		if err := os.Rename(localStateFile, localStateBackup); err != nil {
+			if logCallback != nil {
+				logCallback(fmt.Sprintf("[WARN] Could not backup local state: %v", err))
+			}
+		}
+	}
+
+	args := []string{"init"}
+
+	// Only add backend config if GitLab settings are provided
+	if config.GitLabBaseURL != "" && config.RepositoryID != "" && config.StateName != "" {
+		// Ensure GitLab URL doesn't have trailing slash and has proper scheme
+		baseURL := strings.TrimSuffix(config.GitLabBaseURL, "/")
+
+		// Add https:// if no scheme is present
+		if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+			baseURL = "https://" + baseURL
+		}
+
+		// Build backend config URLs
+		stateURL := fmt.Sprintf("%s/api/v4/projects/%s/terraform/state/%s",
+			baseURL, config.RepositoryID, config.StateName)
+		lockURL := fmt.Sprintf("%s/lock", stateURL)
+
+		if logCallback != nil {
+			logCallback(fmt.Sprintf("[DEBUG] GitLab State URL: %s", stateURL))
+		}
+
+		// Add backend configuration
+		// Use -reconfigure instead of -migrate-state to avoid interactive prompts
+		args = append(args,
+			"-reconfigure",
+			fmt.Sprintf("-backend-config=address=%s", stateURL),
+			fmt.Sprintf("-backend-config=lock_address=%s", lockURL),
+			fmt.Sprintf("-backend-config=unlock_address=%s", lockURL),
+			fmt.Sprintf("-backend-config=username=%s", config.GitLabUser),
+			fmt.Sprintf("-backend-config=password=%s", config.GitLabToken),
+			"-backend-config=lock_method=POST",
+			"-backend-config=unlock_method=DELETE",
+			"-backend-config=retry_wait_min=5",
+		)
+	} else {
+		// No GitLab backend configured, just do regular init
+		if logCallback != nil {
+			logCallback("[DEBUG] Running terraform init without GitLab backend")
+		}
 	}
 
 	result.Command = fmt.Sprintf("terraform %s", strings.Join(args, " "))
@@ -144,7 +182,12 @@ func Plan(config *TerraformConfig, logCallback LogCallback) (*ExecutionResult, e
 	args := []string{"plan"}
 
 	if config.VarFile != "" {
-		args = append(args, fmt.Sprintf("-var-file=%s", config.VarFile))
+		// Resolve var file path - if it's not absolute, make it absolute relative to project path
+		varFilePath := config.VarFile
+		if !filepath.IsAbs(varFilePath) {
+			varFilePath = filepath.Join(config.ProjectPath, varFilePath)
+		}
+		args = append(args, fmt.Sprintf("-var-file=%s", varFilePath))
 	}
 
 	result.Command = fmt.Sprintf("terraform %s", strings.Join(args, " "))
@@ -196,7 +239,12 @@ func Apply(config *TerraformConfig, autoApprove bool, logCallback LogCallback) (
 	}
 
 	if config.VarFile != "" {
-		args = append(args, fmt.Sprintf("-var-file=%s", config.VarFile))
+		// Resolve var file path - if it's not absolute, make it absolute relative to project path
+		varFilePath := config.VarFile
+		if !filepath.IsAbs(varFilePath) {
+			varFilePath = filepath.Join(config.ProjectPath, varFilePath)
+		}
+		args = append(args, fmt.Sprintf("-var-file=%s", varFilePath))
 	}
 
 	result.Command = fmt.Sprintf("terraform %s", strings.Join(args, " "))
@@ -248,7 +296,12 @@ func Destroy(config *TerraformConfig, autoApprove bool, logCallback LogCallback)
 	}
 
 	if config.VarFile != "" {
-		args = append(args, fmt.Sprintf("-var-file=%s", config.VarFile))
+		// Resolve var file path - if it's not absolute, make it absolute relative to project path
+		varFilePath := config.VarFile
+		if !filepath.IsAbs(varFilePath) {
+			varFilePath = filepath.Join(config.ProjectPath, varFilePath)
+		}
+		args = append(args, fmt.Sprintf("-var-file=%s", varFilePath))
 	}
 
 	result.Command = fmt.Sprintf("terraform %s", strings.Join(args, " "))

@@ -1,9 +1,9 @@
 package main
 
 import (
+	"dashboard/internal/api"
+	"dashboard/internal/db"
 	"log"
-	"terraform-dashboard/internal/api"
-	"terraform-dashboard/internal/db"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,7 +40,7 @@ func main() {
 	api.SetupRoutes(router, database)
 
 	// Start server
-	log.Println("Starting Terraform Dashboard backend on :8080")
+	log.Println("Starting Dashboard backend on :8080")
 	if err := router.Run(":8080"); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

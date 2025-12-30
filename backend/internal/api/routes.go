@@ -1,10 +1,10 @@
 package api
 
 import (
+	"dashboard/internal/db"
+	"dashboard/internal/session"
 	"os"
 	"path/filepath"
-	"terraform-dashboard/internal/db"
-	"terraform-dashboard/internal/session"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -37,11 +37,20 @@ func SetupRoutes(router *gin.Engine, database *db.Database) {
 	// Initialize Deployment handler
 	deploymentHandler := NewDeploymentHandler(database)
 
+	// Initialize Notes handler
+	notesHandler := NewNotesHandler(database)
+
+	// Initialize NoteItems handler
+	noteItemsHandler := NewNoteItemsHandler(database)
+
+	// Initialize Zabbix handler
+	zabbixHandler := NewZabbixHandler(database)
+
 	// Health check
 	router.GET("/api/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "ok",
-			"message": "Terraform Dashboard Backend",
+			"message": "Dashboard Backend",
 		})
 	})
 
@@ -197,6 +206,49 @@ func SetupRoutes(router *gin.Engine, database *db.Database) {
 		deploymentGroup.GET("", deploymentHandler.GetAllDeployments)
 		deploymentGroup.GET("/:id", deploymentHandler.GetDeployment)
 		deploymentGroup.GET("/project/:id", deploymentHandler.GetProjectDeployments)
+	}
+
+	// Notes routes (require unlocked database)
+	notesGroup := router.Group("/api/notes")
+	notesGroup.Use(RequireUnlocked(database))
+	{
+		notesGroup.GET("", notesHandler.GetNotes)
+		notesGroup.POST("", notesHandler.SaveNotes)
+		notesGroup.GET("/ws", notesHandler.HandleWebSocket)
+	}
+
+	// Note Items routes (new tree structure)
+	noteItemsGroup := router.Group("/api/note-items")
+	noteItemsGroup.Use(RequireUnlocked(database))
+	{
+		noteItemsGroup.GET("", noteItemsHandler.GetAllItems)
+		noteItemsGroup.GET("/:id", noteItemsHandler.GetItem)
+		noteItemsGroup.POST("", noteItemsHandler.CreateItem)
+		noteItemsGroup.PUT("/:id", noteItemsHandler.UpdateItem)
+		noteItemsGroup.DELETE("/:id", noteItemsHandler.DeleteItem)
+	}
+
+	// Zabbix routes
+	zabbixGroup := router.Group("/api/zabbix-servers")
+	zabbixGroup.Use(RequireUnlocked(database))
+	{
+		zabbixGroup.GET("", zabbixHandler.GetAllZabbixServers)
+		zabbixGroup.GET("/:id", zabbixHandler.GetZabbixServer)
+		zabbixGroup.POST("", zabbixHandler.CreateZabbixServer)
+		zabbixGroup.PUT("/:id", zabbixHandler.UpdateZabbixServer)
+		zabbixGroup.DELETE("/:id", zabbixHandler.DeleteZabbixServer)
+	}
+
+	// IFrame Pages routes
+	iframeHandler := NewIFrameHandler(database)
+	iframeGroup := router.Group("/api/iframe-pages")
+	iframeGroup.Use(RequireUnlocked(database))
+	{
+		iframeGroup.GET("", iframeHandler.GetAllIFramePages)
+		iframeGroup.GET("/:id", iframeHandler.GetIFramePage)
+		iframeGroup.POST("", iframeHandler.CreateIFramePage)
+		iframeGroup.PUT("/:id", iframeHandler.UpdateIFramePage)
+		iframeGroup.DELETE("/:id", iframeHandler.DeleteIFramePage)
 	}
 }
 

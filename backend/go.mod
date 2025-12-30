@@ -1,4 +1,4 @@
-module terraform-dashboard
+module dashboard
 
 go 1.25.3
 

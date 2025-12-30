@@ -7,9 +7,39 @@ import {
   Menu,
   X,
   Lock,
-  GitBranch
+  GitBranch,
+  StickyNote,
+  Monitor,
+  Server,
+  Database,
+  Cloud,
+  Activity,
+  BarChart,
+  Terminal,
+  Shield,
+  Globe,
+  Zap,
+  Cpu,
+  ExternalLink,
+  ChevronDown,
+  ChevronRight,
+  Plus
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+
+interface IFramePage {
+  id: string
+  name: string
+  url: string
+  category: string
+  icon: string
+  position: number
+}
+
+const iconMap: Record<string, any> = {
+  Monitor, Server, Database, Cloud, Activity, BarChart,
+  Terminal, Shield, Lock, Globe, Zap, Cpu, ExternalLink
+}
 
 interface LayoutProps {
   onLockRequest?: () => void
@@ -18,11 +48,55 @@ interface LayoutProps {
 export default function Layout({ onLockRequest }: LayoutProps) {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [iframePages, setIframePages] = useState<IFramePage[]>([])
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    loadIFramePages()
+  }, [])
+
+  const loadIFramePages = async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/iframe-pages')
+      const data = await response.json()
+      console.log('Loaded iframe pages:', data)
+      if (data.pages) {
+        setIframePages(data.pages)
+        // Auto-expand all categories initially
+        const categories = new Set(data.pages.map((p: IFramePage) => p.category))
+        setExpandedCategories(categories)
+      }
+    } catch (error) {
+      console.error('Failed to load iframe pages:', error)
+    }
+  }
+
+  const toggleCategory = (category: string) => {
+    const newExpanded = new Set(expandedCategories)
+    if (newExpanded.has(category)) {
+      newExpanded.delete(category)
+    } else {
+      newExpanded.add(category)
+    }
+    setExpandedCategories(newExpanded)
+  }
+
+  // Group iframe pages by category
+  const groupedIFramePages = iframePages.reduce((acc, page) => {
+    if (!acc[page.category]) acc[page.category] = []
+    acc[page.category].push(page)
+    return acc
+  }, {} as Record<string, IFramePage[]>)
+
+  console.log('Grouped iframe pages:', groupedIFramePages)
+  console.log('Number of categories:', Object.keys(groupedIFramePages).length)
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Terraform', href: '/terraform', icon: Rocket },
     { name: 'GitLab', href: '/gitlab', icon: GitBranch },
+    { name: 'Notes', href: '/notes', icon: StickyNote },
+    { name: 'Zabbix', href: '/zabbix', icon: Monitor },
     { name: 'Secrets', href: '/secrets', icon: Key, disabled: true },
     { name: 'Settings', href: '/settings', icon: Settings },
   ]
@@ -38,8 +112,8 @@ export default function Layout({ onLockRequest }: LayoutProps) {
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-border">
           {sidebarOpen && (
-            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
-              TerraForm
+            <h1 className="text-xl font-bold text-foreground">
+              Dashboard
             </h1>
           )}
           <button
@@ -51,7 +125,7 @@ export default function Layout({ onLockRequest }: LayoutProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navigation.map((item) => {
             const Icon = item.icon
             const isActive = location.pathname === item.href
@@ -81,6 +155,59 @@ export default function Layout({ onLockRequest }: LayoutProps) {
               </Link>
             )
           })}
+
+          {/* IFrame Pages by Category */}
+          {sidebarOpen && Object.entries(groupedIFramePages).map(([category, pages]) => (
+            <div key={category} className="mt-4">
+              <button
+                onClick={() => toggleCategory(category)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-400 hover:text-white transition-colors"
+              >
+                {expandedCategories.has(category) ? (
+                  <ChevronDown size={16} />
+                ) : (
+                  <ChevronRight size={16} />
+                )}
+                {category}
+              </button>
+              {expandedCategories.has(category) && (
+                <div className="space-y-1 ml-2">
+                  {pages.map((page) => {
+                    const Icon = iconMap[page.icon] || ExternalLink
+                    const isActive = location.pathname === `/iframe/${page.id}`
+
+                    return (
+                      <Link
+                        key={page.id}
+                        to={`/iframe/${page.id}`}
+                        className={`
+                          flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm
+                          ${isActive
+                            ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+                            : 'text-foreground hover:bg-accent hover:text-accent-foreground hover-lift'
+                          }
+                        `}
+                      >
+                        <Icon size={18} />
+                        <span>{page.name}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Settings Link for IFrame Management */}
+          {sidebarOpen && iframePages.length === 0 && (
+            <Link
+              to="/settings/iframes"
+              className="flex items-center gap-2 px-3 py-2 mt-4 text-sm text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+            >
+              <Plus size={16} />
+              IFrame-Seiten hinzufügen
+            </Link>
+          )}
         </nav>
 
         {/* Footer */}

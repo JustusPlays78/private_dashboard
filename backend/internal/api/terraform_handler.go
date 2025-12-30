@@ -1,13 +1,13 @@
 package api
 
 import (
+	"dashboard/internal/db"
+	"dashboard/internal/terraform"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
 	"sync"
-	"terraform-dashboard/internal/db"
-	"terraform-dashboard/internal/terraform"
 	"time"
 
 	"github.com/gin-gonic/gin"
