@@ -25,9 +25,8 @@ export default function TerraformDeployer() {
 
   const checkTerraform = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/terraform/check');
-      const data = await response.json();
-      setTerraformInstalled(data.installed);
+      const result = await window.electronAPI.terraform.check();
+      setTerraformInstalled(result.installed);
     } catch (err) {
       console.error('Failed to check Terraform:', err);
     }
@@ -35,10 +34,9 @@ export default function TerraformDeployer() {
 
   const loadClonedProjects = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/cloned-projects');
-      const data = await response.json();
-      if (data.projects && Array.isArray(data.projects)) {
-        setProjects(data.projects);
+      const result = await window.electronAPI.gitlab.getClonedProjects();
+      if (result.projects && Array.isArray(result.projects)) {
+        setProjects(result.projects);
       }
     } catch (err) {
       console.error('Failed to load projects:', err);

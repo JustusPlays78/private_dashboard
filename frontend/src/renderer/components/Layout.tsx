@@ -53,17 +53,26 @@ export default function Layout({ onLockRequest }: LayoutProps) {
 
   useEffect(() => {
     loadIFramePages()
+
+    // Listen for iframe updates from settings page
+    const handleIframesUpdated = () => {
+      loadIFramePages()
+    }
+    window.addEventListener('iframesUpdated', handleIframesUpdated)
+    
+    return () => {
+      window.removeEventListener('iframesUpdated', handleIframesUpdated)
+    }
   }, [])
 
   const loadIFramePages = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/iframe-pages')
-      const data = await response.json()
-      console.log('Loaded iframe pages:', data)
-      if (data.pages) {
-        setIframePages(data.pages)
+      const result = await window.electronAPI.iframes.getAll()
+      console.log('Loaded iframe pages:', result)
+      if (result.pages) {
+        setIframePages(result.pages)
         // Auto-expand all categories initially
-        const categories = new Set(data.pages.map((p: IFramePage) => p.category))
+        const categories = new Set(result.pages.map((p: IFramePage) => p.category))
         setExpandedCategories(categories)
       }
     } catch (error) {
@@ -91,13 +100,13 @@ export default function Layout({ onLockRequest }: LayoutProps) {
   console.log('Grouped iframe pages:', groupedIFramePages)
   console.log('Number of categories:', Object.keys(groupedIFramePages).length)
 
-  const navigation = [
+  const navigation: Array<{ name: string; href: string; icon: any; disabled?: boolean }> = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Terraform', href: '/terraform', icon: Rocket },
     { name: 'GitLab', href: '/gitlab', icon: GitBranch },
+    { name: 'AWS', href: '/aws', icon: Cloud },
     { name: 'Notes', href: '/notes', icon: StickyNote },
-    { name: 'Zabbix', href: '/zabbix', icon: Monitor },
-    { name: 'Secrets', href: '/secrets', icon: Key, disabled: true },
+    { name: 'Secrets', href: '/secrets', icon: Key },
     { name: 'Settings', href: '/settings', icon: Settings },
   ]
 

@@ -68,6 +68,11 @@ export default function ProjectDetails() {
   const [stateName, setStateName] = useState('dev');
   const [gitlabUser] = useState('julian.schallenkammer@siemens.com');
   const [initialized, setInitialized] = useState(false);
+  const [awsCredentials, setAwsCredentials] = useState<{aws_access_key_id: string, aws_secret_access_key: string, aws_session_token: string}>({
+    aws_access_key_id: '',
+    aws_secret_access_key: '',
+    aws_session_token: ''
+  });
 
   const logContainerRef = useRef<HTMLDivElement>(null);
 
@@ -77,7 +82,31 @@ export default function ProjectDetails() {
       loadDeploymentHistory(parseInt(projectId));
       loadTerraformStates(parseInt(projectId));
     }
+    loadAwsCredentials();
   }, [projectId]);
+
+  const loadAwsCredentials = async () => {
+    try {
+      const result = await window.electronAPI.secrets.getAll();
+      if (result.success && result.secrets) {
+        // Look for AWS credentials - either by fixed ID or by category
+        const awsCreds = result.secrets.find((s: any) => 
+          s.id === 'aws-default-credentials' || 
+          (s.category === 'AWS' && s.username && s.password)
+        );
+        
+        if (awsCreds && awsCreds.username && awsCreds.password) {
+          setAwsCredentials({
+            aws_access_key_id: awsCreds.username,
+            aws_secret_access_key: awsCreds.password,
+            aws_session_token: awsCreds.apiKey || ''
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load AWS credentials:', err);
+    }
+  };
 
   useEffect(() => {
     if (project) {
@@ -95,10 +124,9 @@ export default function ProjectDetails() {
 
   const loadProject = async (id: number) => {
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/cloned-projects');
-      const data = await response.json();
-      if (data.projects && Array.isArray(data.projects)) {
-        const found = data.projects.find((p: ClonedProject) => p.ProjectID === id);
+      const result = await window.electronAPI.gitlab.getClonedProjects();
+      if (result.projects && Array.isArray(result.projects)) {
+        const found = result.projects.find((p: ClonedProject) => p.ProjectID === id);
         if (found) setProject(found);
       }
     } catch (err) {
@@ -108,10 +136,9 @@ export default function ProjectDetails() {
 
   const loadDeploymentHistory = async (projectID: number) => {
     try {
-      const response = await fetch(`http://localhost:8080/api/deployments/project/${projectID}`);
-      const data = await response.json();
-      if (data.deployments && Array.isArray(data.deployments)) {
-        setDeployments(data.deployments);
+      const result = await window.electronAPI.deployments.getByProject(projectID);
+      if (result.deployments && Array.isArray(result.deployments)) {
+        setDeployments(result.deployments);
       }
     } catch (err) {
       console.error('Failed to load deployment history:', err);
@@ -120,10 +147,9 @@ export default function ProjectDetails() {
 
   const loadTerraformStates = async (projectID: number) => {
     try {
-      const response = await fetch(`http://localhost:8080/api/gitlab/projects/${projectID}/terraform/states`);
-      const data = await response.json();
-      if (data.states && Array.isArray(data.states)) {
-        setTerraformStates(data.states);
+      const result = await window.electronAPI.gitlab.getTerraformStates(projectID);
+      if (result.states && Array.isArray(result.states)) {
+        setTerraformStates(result.states);
       }
     } catch (err) {
       console.error('Failed to load Terraform states:', err);
@@ -132,12 +158,11 @@ export default function ProjectDetails() {
 
   const loadVarFiles = async (projectPath: string) => {
     try {
-      const response = await fetch(`http://localhost:8080/api/terraform/var-files?project_path=${encodeURIComponent(projectPath)}`);
-      const data = await response.json();
-      if (data.var_files) {
-        setVarFiles(data.var_files);
-        if (data.var_files.length > 0) {
-          setSelectedVarFile(data.var_files[0]);
+      const result = await window.electronAPI.terraform.findVarFiles(projectPath);
+      if (result.var_files) {
+        setVarFiles(result.var_files);
+        if (result.var_files.length > 0) {
+          setSelectedVarFile(result.var_files[0]);
         }
       }
     } catch (err) {
@@ -147,15 +172,10 @@ export default function ProjectDetails() {
 
   const loadBranches = async (projectPath: string) => {
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/branches/list', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_path: projectPath })
-      });
-      const data = await response.json();
-      if (data.branches && Array.isArray(data.branches)) {
-        setBranches(data.branches);
-        setCurrentBranch(data.current_branch || '');
+      const result = await window.electronAPI.gitlab.listBranches(projectPath);
+      if (result.branches && Array.isArray(result.branches)) {
+        setBranches(result.branches);
+        setCurrentBranch(result.current || '');
       }
     } catch (err) {
       console.error('Failed to load branches:', err);
@@ -170,25 +190,16 @@ export default function ProjectDetails() {
     setSuccess('');
 
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/branches/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          project_path: project.LocalPath,
-          branch_name: branchName
-        })
-      });
+      const result = await window.electronAPI.gitlab.switchBranch(project.LocalPath, branchName);
       
-      const data = await response.json();
-      
-      if (response.ok) {
-        setCurrentBranch(data.branch || branchName);
+      if (result.success) {
+        setCurrentBranch(branchName);
         setSuccess(`Switched to branch ${branchName}`);
         // Reload var files and deployments after branch switch
         await loadVarFiles(project.LocalPath);
         await loadDeploymentHistory(project.ProjectID);
       } else {
-        setError(data.error || 'Failed to switch branch');
+        setError(result.error || 'Failed to switch branch');
       }
     } catch (err) {
       setError('Failed to switch branch: ' + (err as Error).message);
@@ -198,11 +209,7 @@ export default function ProjectDetails() {
   };
 
   const getAwsCredentials = () => {
-    return {
-      aws_access_key_id: localStorage.getItem('aws_access_key_id') || '',
-      aws_secret_access_key: localStorage.getItem('aws_secret_access_key') || '',
-      aws_session_token: localStorage.getItem('aws_session_token') || ''
-    };
+    return awsCredentials;
   };
 
   const convertAnsiToHtml = (text: string): string => {
@@ -401,56 +408,35 @@ export default function ProjectDetails() {
     setCurrentAction('Initializing Terraform...');
 
     try {
-      const ws = new WebSocket('ws://localhost:8080/api/terraform/stream-logs');
+      const result = await window.electronAPI.terraform.init(
+        project.LocalPath,
+        '', // varFile not needed for init
+        true // useBackend
+      );
+
+      const endTime = new Date();
+      setLoading(false);
+      setCurrentAction('');
       
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          action: 'init',
-          config: {
-            project_path: project.LocalPath,
-            repository_id: repositoryId,
-            state_name: stateName,
-            gitlab_user: gitlabUser,
-            ...creds
-          }
-        }));
-      };
+      if (result.output) {
+        const outputArray = Array.isArray(result.output) ? result.output : result.output.split('\n');
+        setLogOutput(outputArray);
+      }
+      
+      setOperationMetadata(prev => ({ 
+        ...prev, 
+        completedAt: endTime, 
+        duration: endTime.getTime() - (prev.startedAt?.getTime() || 0),
+        status: result.success ? 'success' : 'failed'
+      }));
 
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        
-        if (data.type === 'log') {
-          setLogOutput(prev => [...prev, data.message]);
-        } else if (data.type === 'complete') {
-          setLoading(false);
-          setCurrentAction('');
-          setOperationMetadata(prev => ({ 
-            ...prev, 
-            completedAt: new Date(), 
-            duration: data.duration,
-            status: data.success ? 'success' : 'failed'
-          }));
-          if (data.success) {
-            setSuccess('Terraform initialized successfully!');
-            setInitialized(true);
-            if (project) loadDeploymentHistory(project.ProjectID);
-          } else {
-            setError(data.error || 'Initialization failed');
-          }
-          ws.close();
-        }
-      };
-
-      ws.onerror = () => {
-        setError('WebSocket connection failed');
-        setLoading(false);
-        setCurrentAction('');
-      };
-
-      ws.onclose = () => {
-        setLoading(false);
-        setCurrentAction('');
-      };
+      if (result.success) {
+        setSuccess('Terraform initialized successfully!');
+        setInitialized(true);
+        loadDeploymentHistory(project.ProjectID);
+      } else {
+        setError(result.error || 'Initialization failed');
+      }
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -478,60 +464,37 @@ export default function ProjectDetails() {
     setCurrentAction('Running Terraform Plan...');
 
     try {
-      const ws = new WebSocket('ws://localhost:8080/api/terraform/stream-logs');
+      const result = await window.electronAPI.terraform.plan(
+        project.LocalPath,
+        selectedVarFile
+      );
+
+      const endTime = new Date();
+      setLoading(false);
+      setCurrentAction('');
       
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          action: 'plan',
-          config: {
-            project_path: project.LocalPath,
-            repository_id: repositoryId,
-            state_name: stateName,
-            var_file: selectedVarFile,
-            ...creds
-          }
-        }));
-      };
+      if (result.output) {
+        const outputArray = Array.isArray(result.output) ? result.output : result.output.split('\n');
+        setLogOutput(outputArray);
+        const parsedSummary = parseTerraformSummary(outputArray);
+        const parsedResources = parseTerraformResources(outputArray);
+        if (parsedSummary) setSummary(parsedSummary);
+        if (parsedResources.length > 0) setResourceChanges(parsedResources);
+      }
+      
+      setOperationMetadata(prev => ({ 
+        ...prev, 
+        completedAt: endTime, 
+        duration: endTime.getTime() - (prev.startedAt?.getTime() || 0),
+        status: result.success ? 'success' : 'failed'
+      }));
 
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        
-        if (data.type === 'log') {
-          setLogOutput(prev => [...prev, data.message]);
-        } else if (data.type === 'complete') {
-          setLoading(false);
-          setCurrentAction('');
-          setOperationMetadata(prev => ({ 
-            ...prev, 
-            completedAt: new Date(), 
-            duration: data.duration,
-            status: data.success ? 'success' : 'failed'
-          }));
-          if (data.success) {
-            setSuccess('Plan completed successfully!');
-            const parsedSummary = parseTerraformSummary(logOutput);
-            const parsedResources = parseTerraformResources(logOutput);
-            console.log('[DEBUG] Plan completed - Summary:', parsedSummary, 'Resources:', parsedResources);
-            if (parsedSummary) setSummary(parsedSummary);
-            if (parsedResources.length > 0) setResourceChanges(parsedResources);
-            if (project) loadDeploymentHistory(project.ProjectID);
-          } else {
-            setError(data.error || 'Plan failed');
-          }
-          ws.close();
-        }
-      };
-
-      ws.onerror = () => {
-        setError('WebSocket connection failed');
-        setLoading(false);
-        setCurrentAction('');
-      };
-
-      ws.onclose = () => {
-        setLoading(false);
-        setCurrentAction('');
-      };
+      if (result.success) {
+        setSuccess('Plan completed successfully!');
+        loadDeploymentHistory(project.ProjectID);
+      } else {
+        setError(result.error || 'Plan failed');
+      }
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -560,60 +523,37 @@ export default function ProjectDetails() {
     setCurrentAction('Applying Terraform Changes...');
 
     try {
-      const ws = new WebSocket('ws://localhost:8080/api/terraform/stream-logs');
+      const result = await window.electronAPI.terraform.apply(
+        project.LocalPath,
+        selectedVarFile
+      );
+
+      const endTime = new Date();
+      setLoading(false);
+      setCurrentAction('');
       
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          action: 'apply',
-          config: {
-            project_path: project.LocalPath,
-            repository_id: repositoryId,
-            state_name: stateName,
-            var_file: selectedVarFile,
-            auto_approve: true,
-            ...creds
-          }
-        }));
-      };
+      if (result.output) {
+        const outputArray = Array.isArray(result.output) ? result.output : result.output.split('\n');
+        setLogOutput(outputArray);
+        const parsedSummary = parseTerraformSummary(outputArray);
+        const parsedResources = parseTerraformResources(outputArray);
+        if (parsedSummary) setSummary(parsedSummary);
+        if (parsedResources.length > 0) setResourceChanges(parsedResources);
+      }
+      
+      setOperationMetadata(prev => ({ 
+        ...prev, 
+        completedAt: endTime, 
+        duration: endTime.getTime() - (prev.startedAt?.getTime() || 0),
+        status: result.success ? 'success' : 'failed'
+      }));
 
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        
-        if (data.type === 'log') {
-          setLogOutput(prev => [...prev, data.message]);
-        } else if (data.type === 'complete') {
-          setLoading(false);
-          setCurrentAction('');
-          setOperationMetadata(prev => ({ 
-            ...prev, 
-            completedAt: new Date(), 
-            duration: data.duration,
-            status: data.success ? 'success' : 'failed'
-          }));
-          if (data.success) {
-            setSuccess('Apply completed successfully!');
-            const parsedSummary = parseTerraformSummary(logOutput);
-            const parsedResources = parseTerraformResources(logOutput);
-            if (parsedSummary) setSummary(parsedSummary);
-            if (parsedResources.length > 0) setResourceChanges(parsedResources);
-            if (project) loadDeploymentHistory(project.ProjectID);
-          } else {
-            setError(data.error || 'Apply failed');
-          }
-          ws.close();
-        }
-      };
-
-      ws.onerror = () => {
-        setError('WebSocket connection failed');
-        setLoading(false);
-        setCurrentAction('');
-      };
-
-      ws.onclose = () => {
-        setLoading(false);
-        setCurrentAction('');
-      };
+      if (result.success) {
+        setSuccess('Apply completed successfully!');
+        loadDeploymentHistory(project.ProjectID);
+      } else {
+        setError(result.error || 'Apply failed');
+      }
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -642,60 +582,37 @@ export default function ProjectDetails() {
     setCurrentAction('Destroying Terraform Resources...');
 
     try {
-      const ws = new WebSocket('ws://localhost:8080/api/terraform/stream-logs');
+      const result = await window.electronAPI.terraform.destroy(
+        project.LocalPath,
+        selectedVarFile
+      );
+
+      const endTime = new Date();
+      setLoading(false);
+      setCurrentAction('');
       
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          action: 'destroy',
-          config: {
-            project_path: project.LocalPath,
-            repository_id: repositoryId,
-            state_name: stateName,
-            var_file: selectedVarFile,
-            auto_approve: true,
-            ...creds
-          }
-        }));
-      };
+      if (result.output) {
+        const outputArray = Array.isArray(result.output) ? result.output : result.output.split('\n');
+        setLogOutput(outputArray);
+        const parsedSummary = parseTerraformSummary(outputArray);
+        const parsedResources = parseTerraformResources(outputArray);
+        if (parsedSummary) setSummary(parsedSummary);
+        if (parsedResources.length > 0) setResourceChanges(parsedResources);
+      }
+      
+      setOperationMetadata(prev => ({ 
+        ...prev, 
+        completedAt: endTime, 
+        duration: endTime.getTime() - (prev.startedAt?.getTime() || 0),
+        status: result.success ? 'success' : 'failed'
+      }));
 
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        
-        if (data.type === 'log') {
-          setLogOutput(prev => [...prev, data.message]);
-        } else if (data.type === 'complete') {
-          setLoading(false);
-          setCurrentAction('');
-          setOperationMetadata(prev => ({ 
-            ...prev, 
-            completedAt: new Date(), 
-            duration: data.duration,
-            status: data.success ? 'success' : 'failed'
-          }));
-          if (data.success) {
-            setSuccess('Destroy completed successfully!');
-            const parsedSummary = parseTerraformSummary(logOutput);
-            const parsedResources = parseTerraformResources(logOutput);
-            if (parsedSummary) setSummary(parsedSummary);
-            if (parsedResources.length > 0) setResourceChanges(parsedResources);
-            if (project) loadDeploymentHistory(project.ProjectID);
-          } else {
-            setError(data.error || 'Destroy failed');
-          }
-          ws.close();
-        }
-      };
-
-      ws.onerror = () => {
-        setError('WebSocket connection failed');
-        setLoading(false);
-        setCurrentAction('');
-      };
-
-      ws.onclose = () => {
-        setLoading(false);
-        setCurrentAction('');
-      };
+      if (result.success) {
+        setSuccess('Destroy completed successfully!');
+        loadDeploymentHistory(project.ProjectID);
+      } else {
+        setError(result.error || 'Destroy failed');
+      }
     } catch (err: any) {
       setError(err.message);
       setLoading(false);

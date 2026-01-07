@@ -1,5 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { GitBranch, Download, RefreshCw, Search, FolderGit, Check, AlertCircle, Folder, Trash2 } from 'lucide-react';
+import { GitBranch, Download, RefreshCw, Search, FolderGit, Check, AlertCircle, Folder, Trash2, Key, ChevronDown, Server, Link2 } from 'lucide-react';
+
+interface Secret {
+  id: string;
+  name: string;
+  category: string;
+  apiKey: string | null;
+  url: string | null;
+}
+
+interface GitLabInstance {
+  id: string;
+  name: string;
+  url: string;
+}
 
 interface GitLabProject {
   id: number;
@@ -39,6 +53,7 @@ interface SavedClonedProject {
   DefaultBranch: string;
   ClonedAt: string;
   LastPull: string | null;
+  InstanceUrl: string | null;
 }
 
 type ClonedProject = ClonedProjectResponse | SavedClonedProject;
@@ -57,19 +72,75 @@ export default function GitLabIntegration() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [gitInstalled, setGitInstalled] = useState(false);
+  const [secrets, setSecrets] = useState<Secret[]>([]);
+  const [showSecretPicker, setShowSecretPicker] = useState(false);
+  const [gitlabInstances, setGitlabInstances] = useState<GitLabInstance[]>([]);
+  const [selectedInstanceFilter, setSelectedInstanceFilter] = useState<string>('all');
+  const [assigningProject, setAssigningProject] = useState<number | null>(null);
 
   useEffect(() => {
     checkGitInstallation();
     loadSavedConfig();
     loadSavedClonedProjects();
+    loadSecrets();
+    loadGitLabInstances();
   }, []);
+
+  const loadGitLabInstances = async () => {
+    try {
+      const result = await window.electronAPI.secrets.getAll();
+      if (result.success && result.secrets) {
+        const instances = result.secrets
+          .filter((s: Secret) => s.category === 'GitLab' && s.url)
+          .map((s: Secret) => ({
+            id: s.id,
+            name: s.name,
+            url: s.url || ''
+          }));
+        setGitlabInstances(instances);
+      }
+    } catch (err) {
+      console.error('Failed to load GitLab instances:', err);
+    }
+  };
+
+  const loadSecrets = async () => {
+    try {
+      const result = await window.electronAPI.secrets.getAll();
+      if (result.success && result.secrets) {
+        // Filter to only show secrets with API keys (likely GitLab tokens)
+        const gitlabSecrets = result.secrets.filter(
+          (s: Secret) => s.apiKey && (s.category === 'GitLab' || s.category === 'API Keys')
+        );
+        setSecrets(gitlabSecrets);
+      }
+    } catch (err) {
+      console.error('Failed to load secrets:', err);
+    }
+  };
+
+  const useSecretToken = (secret: Secret) => {
+    if (secret.apiKey) {
+      setToken(secret.apiKey);
+    }
+    if (secret.url) {
+      // Extract domain from URL
+      try {
+        const url = new URL(secret.url);
+        setBaseURL(url.host);
+      } catch {
+        // If not a valid URL, use as-is
+        setBaseURL(secret.url);
+      }
+    }
+    setShowSecretPicker(false);
+  };
 
   const checkGitInstallation = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/git/check');
-      const data = await response.json();
-      setGitInstalled(data.installed);
-      if (!data.installed) {
+      const result = await window.electronAPI.gitlab.checkGit();
+      setGitInstalled(result.installed);
+      if (!result.installed) {
         setError('Git is not installed. Please install Git to use GitLab integration.');
       }
     } catch (err) {
@@ -79,10 +150,8 @@ export default function GitLabIntegration() {
 
   const loadSavedConfig = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/config');
-      if (!response.ok) return;
-      const data = await response.json();
-      if (data.configured) {
+      const data = await window.electronAPI.gitlab.getConfig();
+      if (data && data.configured) {
         setConfigured(true);
         setBaseURL(data.base_url);
       }
@@ -93,11 +162,9 @@ export default function GitLabIntegration() {
 
   const loadSavedClonedProjects = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/cloned-projects');
-      if (!response.ok) return;
-      const data = await response.json();
-      if (data.projects && Array.isArray(data.projects)) {
-        setClonedProjects(data.projects);
+      const result = await window.electronAPI.gitlab.getClonedProjects();
+      if (result.projects && Array.isArray(result.projects)) {
+        setClonedProjects(result.projects);
       }
     } catch (err) {
       console.error('Failed to load saved cloned projects:', err);
@@ -111,15 +178,10 @@ export default function GitLabIntegration() {
     setSuccess('');
 
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/configure', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base_url: baseURL, token }),
-      });
+      const result = await window.electronAPI.gitlab.configure(baseURL, token);
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to configure GitLab');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to configure GitLab');
       }
 
       setConfigured(true);
@@ -138,10 +200,9 @@ export default function GitLabIntegration() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/projects');
-      if (!response.ok) throw new Error('Failed to load projects');
-      const data = await response.json();
-      setProjects(data.projects || []);
+      const result = await window.electronAPI.gitlab.listProjects();
+      if (!result.success) throw new Error(result.error || 'Failed to load projects');
+      setProjects(result.projects || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -161,23 +222,20 @@ export default function GitLabIntegration() {
 
     try {
       if (searchMode === 'id') {
-        const response = await fetch(`http://localhost:8080/api/gitlab/projects/${encodeURIComponent(searchTerm)}`);
-        if (!response.ok) throw new Error('Project not found');
-        const project = await response.json();
-        setProjects([project]);
+        const result = await window.electronAPI.gitlab.getProject(searchTerm);
+        if (!result.success) throw new Error('Project not found');
+        setProjects([result.project]);
         setSelectedGroup(null);
       } else if (searchMode === 'groups') {
-        const response = await fetch(`http://localhost:8080/api/gitlab/groups/search?q=${encodeURIComponent(searchTerm)}`);
-        if (!response.ok) throw new Error('Group search failed');
-        const data = await response.json();
-        setGroups(data.groups || []);
+        const result = await window.electronAPI.gitlab.searchGroups(searchTerm);
+        if (!result.success) throw new Error('Group search failed');
+        setGroups(result.groups || []);
         setProjects([]);
         setSelectedGroup(null);
       } else {
-        const response = await fetch(`http://localhost:8080/api/gitlab/projects/search?q=${encodeURIComponent(searchTerm)}`);
-        if (!response.ok) throw new Error('Search failed');
-        const data = await response.json();
-        setProjects(data.projects || []);
+        const result = await window.electronAPI.gitlab.searchProjects(searchTerm);
+        if (!result.success) throw new Error('Search failed');
+        setProjects(result.projects || []);
         setSelectedGroup(null);
       }
     } catch (err: any) {
@@ -193,10 +251,9 @@ export default function GitLabIntegration() {
     setSelectedGroup(group);
 
     try {
-      const response = await fetch(`http://localhost:8080/api/gitlab/groups/${group.id}/projects`);
-      if (!response.ok) throw new Error('Failed to load group projects');
-      const data = await response.json();
-      setProjects(data.projects || []);
+      const result = await window.electronAPI.gitlab.getGroupProjects(group.id);
+      if (!result.success) throw new Error('Failed to load group projects');
+      setProjects(result.projects || []);
       setGroups([]);
     } catch (err: any) {
       setError(err.message);
@@ -211,20 +268,24 @@ export default function GitLabIntegration() {
     setSuccess('');
 
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/clone', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: project.id, token }),
-      });
+      const result = await window.electronAPI.gitlab.clone(project.id);
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to clone project');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to clone project');
       }
 
-      const data = await response.json();
-      setClonedProjects([...clonedProjects, data]);
-      setSuccess(`Successfully cloned ${project.name} with ${data.terraform_files_count} Terraform files`);
+      // Create a properly typed ClonedProjectResponse
+      const clonedProject: ClonedProjectResponse = {
+        project_path: result.project_path || '',
+        project_name: result.project_name || project.name,
+        branch: result.branch || project.default_branch,
+        last_commit: result.last_commit || { hash: '', message: '' },
+        terraform_files: result.terraform_files || [],
+        terraform_files_count: result.terraform_files_count || 0,
+      };
+
+      setClonedProjects([...clonedProjects, clonedProject]);
+      setSuccess(`Successfully cloned ${project.name} with ${result.terraform_files_count} Terraform files`);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -238,21 +299,15 @@ export default function GitLabIntegration() {
     setSuccess('');
 
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/pull', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_path: projectPath, project_id: projectId || 0 }),
-      });
+      const result = await window.electronAPI.gitlab.pull(projectId || 0);
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to pull updates');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to pull updates');
       }
 
-      const data = await response.json();
       setSuccess(`Successfully pulled latest changes for ${projectName}`);
       setClonedProjects(clonedProjects.map(p => 
-        ('project_path' in p && p.project_path === projectPath) ? { ...p, ...data } : p
+        ('project_path' in p && p.project_path === projectPath) ? { ...p, ...result } : p
       ));
     } catch (err: any) {
       setError(err.message);
@@ -269,15 +324,10 @@ export default function GitLabIntegration() {
     setSuccess('');
 
     try {
-      const response = await fetch('http://localhost:8080/api/gitlab/cloned-projects', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: projectId }),
-      });
+      const result = await window.electronAPI.gitlab.deleteClonedProject(projectId);
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete project');
+      if (!result.success) {
+        throw new Error('Failed to delete project');
       }
 
       await loadSavedClonedProjects();
@@ -288,6 +338,38 @@ export default function GitLabIntegration() {
       setLoading(false);
     }
   };
+
+  const handleAssignInstance = async (projectId: number, instanceUrl: string) => {
+    setAssigningProject(projectId);
+    try {
+      const result = await window.electronAPI.gitlab.assignProjectToInstance(projectId, instanceUrl);
+      if (result.success) {
+        await loadSavedClonedProjects();
+        setSuccess('Project assigned to instance');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAssigningProject(null);
+    }
+  };
+
+  const getInstanceName = (instanceUrl: string | null): string => {
+    if (!instanceUrl) return 'Unassigned';
+    const instance = gitlabInstances.find(i => i.url === instanceUrl);
+    return instance?.name || instanceUrl;
+  };
+
+  const filteredClonedProjects = clonedProjects.filter(p => {
+    if (selectedInstanceFilter === 'all') return true;
+    if (selectedInstanceFilter === 'unassigned') {
+      return !('InstanceUrl' in p) || !(p as SavedClonedProject).InstanceUrl;
+    }
+    if ('InstanceUrl' in p) {
+      return (p as SavedClonedProject).InstanceUrl === selectedInstanceFilter;
+    }
+    return false;
+  });
 
   if (!gitInstalled) {
     return (
@@ -317,6 +399,43 @@ export default function GitLabIntegration() {
           <h2 className="text-2xl font-bold text-white mb-2">Configure GitLab</h2>
           <p className="text-slate-400">Connect to your GitLab instance to import Terraform projects</p>
         </div>
+
+        {/* Import from Secrets */}
+        {secrets.length > 0 && (
+          <div className="mb-6 p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Key className="w-4 h-4 text-purple-400" />
+                <span className="text-sm text-slate-300">Import credentials from Secrets Manager</span>
+              </div>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowSecretPicker(!showSecretPicker)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-lg transition-colors"
+                >
+                  Select Secret
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                {showSecretPicker && (
+                  <div className="absolute right-0 top-full mt-1 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10">
+                    {secrets.map(secret => (
+                      <button
+                        key={secret.id}
+                        type="button"
+                        onClick={() => useSecretToken(secret)}
+                        className="w-full text-left px-4 py-2 hover:bg-slate-700 text-sm text-slate-300 first:rounded-t-lg last:rounded-b-lg"
+                      >
+                        <div className="font-medium">{secret.name}</div>
+                        <div className="text-xs text-slate-500">{secret.category}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleConfigure} className="space-y-4">
           <div>
@@ -371,11 +490,40 @@ export default function GitLabIntegration() {
     );
   }
 
+  const handleDisconnect = async () => {
+    if (!confirm('Are you sure you want to disconnect from GitLab? This will not delete cloned projects.')) return;
+    
+    setLoading(true);
+    try {
+      const result = await window.electronAPI.gitlab.disconnect();
+      if (result.success) {
+        setConfigured(false);
+        setProjects([]);
+        setGroups([]);
+        setSuccess('Disconnected from GitLab');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-white mb-2">GitLab Projects</h2>
-        <p className="text-slate-400">Browse and clone Terraform projects from GitLab</p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-white mb-2">GitLab Projects</h2>
+          <p className="text-slate-400">Connected to: <span className="text-purple-400">{baseURL}</span></p>
+        </div>
+        <button
+          onClick={handleDisconnect}
+          disabled={loading}
+          className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition-colors flex items-center gap-2"
+        >
+          <AlertCircle className="w-4 h-4" />
+          Disconnect
+        </button>
       </div>
 
       {success && (
@@ -481,12 +629,30 @@ export default function GitLabIntegration() {
 
       {clonedProjects.length > 0 && (
         <div className="mb-8">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <FolderGit className="w-5 h-5 text-green-400" />
-            Cloned Projects ({clonedProjects.length})
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <FolderGit className="w-5 h-5 text-green-400" />
+              Cloned Projects ({filteredClonedProjects.length})
+            </h3>
+            {gitlabInstances.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Server className="w-4 h-4 text-slate-400" />
+                <select
+                  value={selectedInstanceFilter}
+                  onChange={(e) => setSelectedInstanceFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-purple-500"
+                >
+                  <option value="all">All Instances</option>
+                  <option value="unassigned">Unassigned</option>
+                  {gitlabInstances.map(instance => (
+                    <option key={instance.id} value={instance.url}>{instance.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
           <div className="space-y-3">
-            {clonedProjects.map((project, idx) => {
+            {filteredClonedProjects.map((project, idx) => {
               const isResponseProject = 'project_path' in project;
               const isDbProject = 'ProjectID' in project;
               
@@ -553,6 +719,33 @@ export default function GitLabIntegration() {
                         {p.DefaultBranch || 'main'}
                       </span>
                       <span>Cloned: {new Date(p.ClonedAt).toLocaleDateString()}</span>
+                    </div>
+                    {/* Instance Assignment */}
+                    <div className="mt-3 pt-3 border-t border-slate-700 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Server className="w-4 h-4 text-slate-500" />
+                        <span className={p.InstanceUrl ? 'text-green-400' : 'text-yellow-400'}>
+                          {getInstanceName(p.InstanceUrl)}
+                        </span>
+                      </div>
+                      {gitlabInstances.length > 0 && (
+                        <div className="relative">
+                          <select
+                            value={p.InstanceUrl || ''}
+                            onChange={(e) => handleAssignInstance(p.ProjectID, e.target.value)}
+                            disabled={assigningProject === p.ProjectID}
+                            className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                          >
+                            <option value="">Assign to instance...</option>
+                            {gitlabInstances.map(instance => (
+                              <option key={instance.id} value={instance.url}>{instance.name}</option>
+                            ))}
+                          </select>
+                          {assigningProject === p.ProjectID && (
+                            <RefreshCw className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-purple-400" />
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

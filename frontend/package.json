@@ -8,11 +8,10 @@
         "dev": "vite",
         "build": "tsc && vite build && electron-builder",
         "build:electron": "node build-electron.mjs",
-        "build:backend": "cd ../backend && go build -ldflags=\"-s -w\" -o bin/dashboard.exe cmd/main.go",
-        "build:backend:dev": "cd ../backend && go build -ldflags=\"-s -w\" -o cmd/dashboard-backend.exe cmd/main.go",
         "preview": "vite preview",
-        "electron:dev": "npm run build:backend:dev && npm run build:electron && concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
-        "electron:build": "npm run build:backend && npm run build:electron && vite build && electron-builder"
+        "electron:dev": "npm run build:electron && concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
+        "electron:build": "npm run build:electron && vite build && electron-builder",
+        "rebuild": "electron-rebuild -f -w better-sqlite3,argon2"
     },
     "keywords": [
         "dashboard",
@@ -21,14 +20,18 @@
     "author": "",
     "license": "ISC",
     "devDependencies": {
+        "@types/better-sqlite3": "^7.6.13",
         "@types/react": "^19.2.2",
         "@types/react-dom": "^19.2.2",
+        "@types/uuid": "^10.0.0",
         "@vitejs/plugin-react": "^5.1.0",
         "autoprefixer": "^10.4.21",
+        "baseline-browser-mapping": "^2.9.11",
         "concurrently": "^9.2.1",
         "cross-env": "^10.1.0",
         "electron": "^39.1.0",
         "electron-builder": "^26.0.12",
+        "electron-rebuild": "^3.2.9",
         "esbuild": "^0.25.12",
         "postcss": "^8.5.6",
         "tailwindcss": "^4.1.16",
@@ -36,6 +39,12 @@
         "vite": "^7.2.1"
     },
     "dependencies": {
+        "@aws-sdk/client-ec2": "^3.962.0",
+        "@aws-sdk/client-lambda": "^3.962.0",
+        "@aws-sdk/client-rds": "^3.963.0",
+        "@aws-sdk/client-s3": "^3.962.0",
+        "@aws-sdk/client-sts": "^3.962.0",
+        "@floating-ui/dom": "^1.7.4",
         "@tailwindcss/postcss": "^4.1.16",
         "@tiptap/extension-color": "^3.13.0",
         "@tiptap/extension-table": "^3.13.0",
@@ -47,10 +56,13 @@
         "@tiptap/extension-underline": "^3.13.0",
         "@tiptap/react": "^3.13.0",
         "@tiptap/starter-kit": "^3.13.0",
+        "argon2": "^0.41.1",
+        "better-sqlite3": "^12.5.0",
         "lucide-react": "^0.552.0",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
         "react-router-dom": "^7.9.5",
+        "uuid": "^11.0.3",
         "wait-on": "^9.0.1"
     },
     "build": {
@@ -61,8 +73,12 @@
         },
         "files": [
             "dist/**/*",
-            "dist-electron/**/*",
-            "!node_modules/**/*"
+            "dist-electron/**/*"
+        ],
+        "asar": true,
+        "asarUnpack": [
+            "**/node_modules/better-sqlite3/**/*",
+            "**/node_modules/argon2/**/*"
         ],
         "win": {
             "target": [
@@ -89,15 +105,6 @@
             "createDesktopShortcut": true,
             "createStartMenuShortcut": true,
             "shortcutName": "Dashboard"
-        },
-        "extraResources": [
-            {
-                "from": "../backend/bin/",
-                "to": "backend",
-                "filter": [
-                    "**/*"
-                ]
-            }
-        ]
+        }
     }
 }

@@ -111,10 +111,9 @@ export default function IFrameViewer() {
   const loadPage = async (pageId: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/iframe-pages/${pageId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setPage(data);
+      const result = await window.electronAPI.iframes.get(pageId);
+      if (result.success && result.page) {
+        setPage(result.page);
       }
     } catch (error) {
       console.error('Failed to load page:', error);

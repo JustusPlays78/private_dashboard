@@ -20,7 +20,6 @@ This will:
 ## Release Workflow
 
 When you push a tag matching `v*.*.*` pattern:
-- Backend is built with Go
 - Frontend is built with Vite and Electron
 - Windows installer (`.exe`) is created
 - GitHub release is automatically created with the installer attached

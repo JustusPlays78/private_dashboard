@@ -27,10 +27,9 @@ export default function IFrameSettings() {
 
   const loadPages = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/iframe-pages');
-      const data = await response.json();
-      if (data.pages) {
-        setPages(data.pages);
+      const result = await window.electronAPI.iframes.getAll();
+      if (result.pages) {
+        setPages(result.pages);
       }
     } catch (error) {
       console.error('Failed to load pages:', error);
@@ -41,20 +40,17 @@ export default function IFrameSettings() {
     if (!formData.name.trim() || !formData.url.trim() || !formData.category.trim()) return;
 
     try {
-      const response = await fetch('http://localhost:8080/api/iframe-pages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          url: formData.url.trim(),
-          category: formData.category.trim(),
-          icon: formData.icon,
-          position: pages.filter(p => p.category === formData.category).length,
-        }),
+      const result = await window.electronAPI.iframes.create({
+        name: formData.name.trim(),
+        url: formData.url.trim(),
+        category: formData.category.trim(),
+        icon: formData.icon,
+        position: pages.filter(p => p.category === formData.category).length,
       });
 
-      if (response.ok) {
+      if (result.success) {
         await loadPages();
+        window.dispatchEvent(new Event('iframesUpdated'));
         resetForm();
       }
     } catch (error) {
@@ -66,20 +62,17 @@ export default function IFrameSettings() {
     if (!editingPage || !formData.name.trim() || !formData.url.trim() || !formData.category.trim()) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/iframe-pages/${editingPage.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          url: formData.url.trim(),
-          category: formData.category.trim(),
-          icon: formData.icon,
-          position: editingPage.position,
-        }),
+      const result = await window.electronAPI.iframes.update(editingPage.id, {
+        name: formData.name.trim(),
+        url: formData.url.trim(),
+        category: formData.category.trim(),
+        icon: formData.icon,
+        position: editingPage.position,
       });
 
-      if (response.ok) {
+      if (result.success) {
         await loadPages();
+        window.dispatchEvent(new Event('iframesUpdated'));
         resetForm();
       }
     } catch (error) {
@@ -91,12 +84,11 @@ export default function IFrameSettings() {
     if (!confirm('Diese IFrame-Seite wirklich löschen?')) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/iframe-pages/${id}`, {
-        method: 'DELETE',
-      });
+      const result = await window.electronAPI.iframes.delete(id);
 
-      if (response.ok) {
+      if (result.success) {
         await loadPages();
+        window.dispatchEvent(new Event('iframesUpdated'));
       }
     } catch (error) {
       console.error('Failed to delete page:', error);

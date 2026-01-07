@@ -11,7 +11,12 @@ const mainConfig = {
   platform: 'node',
   target: 'node18',
   outfile: path.resolve(__dirname, 'dist-electron/main.cjs'),
-  external: ['electron'],
+  external: [
+    'electron', 
+    'better-sqlite3', 
+    'argon2',
+    '@aws-sdk/*'
+  ],
   format: 'cjs',
   sourcemap: process.env.NODE_ENV === 'development',
 }

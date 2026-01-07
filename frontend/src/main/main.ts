@@ -1,45 +1,13 @@
 import { app, BrowserWindow, ipcMain, BrowserView } from 'electron'
 import path from 'path'
-import { spawn, ChildProcess } from 'child_process'
+import { setupIpcHandlers, cleanupIpcHandlers } from './lib/ipc-handlers'
 
 // __dirname is available in CJS build
 declare const __dirname: string
 
 let mainWindow: BrowserWindow | null = null
-let backendProcess: ChildProcess | null = null
 const browserViewCache = new Map<string, BrowserView>()
 let currentBrowserViewId: string | null = null
-
-const BACKEND_PORT = 8080
-
-function startBackend() {
-  const isDev = !app.isPackaged
-  
-  let backendPath: string
-  
-  if (isDev) {
-    // Development: Launch backend from cmd directory
-    backendPath = path.join(__dirname, '../../backend/cmd/dashboard-backend.exe')
-  } else {
-    // Production: Launch bundled backend
-    backendPath = path.join(process.resourcesPath, 'backend', 'dashboard.exe')
-  }
-
-  console.log('Starting backend:', backendPath)
-  
-  backendProcess = spawn(backendPath, [], {
-    cwd: path.dirname(backendPath),
-    stdio: 'inherit'
-  })
-
-  backendProcess.on('error', (err) => {
-    console.error('Backend process error:', err)
-  })
-
-  backendProcess.on('exit', (code) => {
-    console.log(`Backend process exited with code ${code}`)
-  })
-}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -80,13 +48,11 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // Start backend first
-  startBackend()
+  // Setup IPC handlers for database and services
+  setupIpcHandlers(() => mainWindow)
   
-  // Small delay to let backend start
-  setTimeout(() => {
-    createWindow()
-  }, 1000)
+  // Create window immediately (no backend delay needed)
+  createWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -96,28 +62,14 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (backendProcess) {
-    backendProcess.kill()
-  }
+  cleanupIpcHandlers()
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
 app.on('quit', () => {
-  if (backendProcess) {
-    backendProcess.kill()
-  }
-})
-
-// IPC handlers for backend communication
-ipcMain.handle('backend:health', async () => {
-  try {
-    const response = await fetch(`http://localhost:${BACKEND_PORT}/api/health`)
-    return await response.json()
-  } catch (error) {
-    return { error: 'Backend not available' }
-  }
+  cleanupIpcHandlers()
 })
 
 // BrowserView handlers for iframe pages

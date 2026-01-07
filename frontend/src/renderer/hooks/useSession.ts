@@ -13,21 +13,15 @@ export function useSession(options: UseSessionOptions = {}) {
 
   const sendHeartbeat = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/auth/heartbeat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
+      const result = await window.electronAPI.auth.heartbeat()
 
-      if (!response.ok) {
+      if (!result.success) {
         // Session expired or database locked
         if (onLock) {
           onLock()
         }
-      } else {
-        const data = await response.json()
-        console.log(`Time until lock: ${Math.floor(data.time_until_lock / 60)} minutes`)
+      } else if (result.time_until_lock !== undefined) {
+        console.log(`Time until lock: ${Math.floor(result.time_until_lock / 60)} minutes`)
       }
     } catch (error) {
       console.error('Heartbeat failed:', error)
@@ -73,12 +67,7 @@ export function useSession(options: UseSessionOptions = {}) {
 
   const lockManually = useCallback(async () => {
     try {
-      await fetch('http://localhost:8080/api/auth/lock', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
+      await window.electronAPI.auth.lock()
       
       if (onLock) {
         onLock()

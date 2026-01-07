@@ -173,12 +173,11 @@ export default function NotesCanvas() {
 
   const loadNoteItems = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/note-items');
-      const data = await response.json();
-      if (data.items) {
-        setNoteItems(data.items);
+      const result = await window.electronAPI.noteItems.getAll();
+      if (result.items) {
+        setNoteItems(result.items);
         // Auto-select first non-folder note
-        const firstNote = data.items.find((item: NoteItem) => !item.is_folder);
+        const firstNote = result.items.find((item: NoteItem) => !item.is_folder);
         if (firstNote && !selectedNote) {
           setSelectedNote(firstNote);
         }
@@ -199,20 +198,16 @@ export default function NotesCanvas() {
     if (!newItemName.trim()) return;
 
     try {
-      const response = await fetch('http://localhost:8080/api/note-items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          parent_id: createModalParentId,
-          name: newItemName.trim(),
-          type: 3,
-          is_folder: createModalIsFolder,
-          content: createModalIsFolder ? '' : '[]',
-          position: noteItems.length,
-        }),
+      const result = await window.electronAPI.noteItems.create({
+        parent_id: createModalParentId,
+        name: newItemName.trim(),
+        type: 3,
+        is_folder: createModalIsFolder,
+        content: createModalIsFolder ? '' : '[]',
+        position: noteItems.length,
       });
 
-      if (response.ok) {
+      if (result.success) {
         await loadNoteItems();
         setShowCreateModal(false);
       }
@@ -230,11 +225,9 @@ export default function NotesCanvas() {
     if (!deleteItemId) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/note-items/${deleteItemId}`, {
-        method: 'DELETE',
-      });
+      const result = await window.electronAPI.noteItems.delete(deleteItemId);
 
-      if (response.ok) {
+      if (result.success) {
         if (selectedNote?.id === deleteItemId) {
           setSelectedNote(null);
         }
@@ -251,15 +244,11 @@ export default function NotesCanvas() {
     if (!selectedNote) return;
 
     try {
-      await fetch(`http://localhost:8080/api/note-items/${selectedNote.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: selectedNote.name,
-          content: JSON.stringify(canvasElements),
-          position: selectedNote.position,
-          parent_id: selectedNote.parent_id,
-        }),
+      await window.electronAPI.noteItems.update(selectedNote.id, {
+        name: selectedNote.name,
+        content: JSON.stringify(canvasElements),
+        position: selectedNote.position,
+        parent_id: selectedNote.parent_id,
       });
     } catch (error) {
       console.error('Failed to save canvas:', error);
