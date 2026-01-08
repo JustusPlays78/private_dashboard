@@ -4,6 +4,17 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -15,6 +26,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -37,6 +51,19 @@ jobs:
         run: |
           cd frontend
           npm ci
+
+      - name: Bump Version (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          cd frontend
+          node scripts/version-bump.mjs ${{ github.event.inputs.version_type }}
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          $VERSION = (Get-Content package.json | ConvertFrom-Json).version
+          git add package.json CHANGELOG.md
+          git commit -m "chore: release v$VERSION"
+          git tag "v$VERSION"
+          git push origin HEAD --tags
 
       - name: Build and Package Application
         run: |

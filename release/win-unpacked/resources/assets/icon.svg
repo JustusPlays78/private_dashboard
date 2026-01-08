@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f97316;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ea580c;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2563eb;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background rounded square -->
+  <rect x="16" y="16" width="224" height="224" rx="40" fill="url(#bgGrad)" />
+  
+  <!-- Border glow -->
+  <rect x="16" y="16" width="224" height="224" rx="40" fill="none" stroke="url(#accentGrad)" stroke-width="3" opacity="0.6"/>
+  
+  <!-- Dashboard grid pattern -->
+  <!-- Top left card -->
+  <rect x="48" y="56" width="72" height="56" rx="8" fill="url(#accentGrad)" opacity="0.9"/>
+  
+  <!-- Top right card -->
+  <rect x="136" y="56" width="72" height="56" rx="8" fill="url(#blueGrad)" opacity="0.8"/>
+  
+  <!-- Bottom left card -->
+  <rect x="48" y="128" width="72" height="72" rx="8" fill="#334155" opacity="0.9"/>
+  
+  <!-- Bottom right card -->
+  <rect x="136" y="128" width="72" height="72" rx="8" fill="#334155" opacity="0.9"/>
+  
+  <!-- Chart bars in bottom left -->
+  <rect x="60" y="168" width="12" height="24" rx="2" fill="url(#accentGrad)" opacity="0.8"/>
+  <rect x="78" y="156" width="12" height="36" rx="2" fill="url(#accentGrad)" opacity="0.9"/>
+  <rect x="96" y="144" width="12" height="48" rx="2" fill="url(#accentGrad)"/>
+  
+  <!-- Activity line in bottom right -->
+  <polyline points="148,176 164,160 180,168 196,148" fill="none" stroke="url(#blueGrad)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="148" cy="176" r="4" fill="#3b82f6"/>
+  <circle cx="164" cy="160" r="4" fill="#3b82f6"/>
+  <circle cx="180" cy="168" r="4" fill="#3b82f6"/>
+  <circle cx="196" cy="148" r="4" fill="#3b82f6"/>
+  
+  <!-- Pulse indicator in top left -->
+  <circle cx="84" cy="84" r="12" fill="#fff" opacity="0.9"/>
+  <circle cx="84" cy="84" r="6" fill="#f97316"/>
+  
+  <!-- Cloud icon in top right -->
+  <path d="M172,76 c-2-8-9-14-18-14 c-8,0-15,5-18,12 c-6,1-11,6-11,13 c0,8,6,14,14,14 h32 c7,0,12-5,12-12 c0-6-4-11-11-13z" fill="#fff" opacity="0.9"/>
+</svg>

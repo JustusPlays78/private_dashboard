@@ -1,0 +1,129 @@
+{
+    "name": "dashboard",
+    "version": "1.1.1",
+    "description": "Dashboard",
+    "main": "dist-electron/main.cjs",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build && electron-builder",
+        "build:electron": "node build-electron.mjs",
+        "preview": "vite preview",
+        "electron:dev": "npm run build:electron && concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
+        "electron:build": "npm run build:electron && vite build && electron-builder",
+        "electron:release": "node scripts/version-bump.mjs patch && npm run electron:build",
+        "electron:release:minor": "node scripts/version-bump.mjs minor && npm run electron:build",
+        "electron:release:major": "node scripts/version-bump.mjs major && npm run electron:build",
+        "version:patch": "node scripts/version-bump.mjs patch",
+        "version:minor": "node scripts/version-bump.mjs minor",
+        "version:major": "node scripts/version-bump.mjs major",
+        "rebuild": "electron-rebuild -f -w better-sqlite3,argon2"
+    },
+    "keywords": [
+        "dashboard",
+        "electron"
+    ],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "@types/better-sqlite3": "^7.6.13",
+        "@types/react": "^19.2.2",
+        "@types/react-dom": "^19.2.2",
+        "@types/uuid": "^10.0.0",
+        "@vitejs/plugin-react": "^5.1.0",
+        "autoprefixer": "^10.4.21",
+        "baseline-browser-mapping": "^2.9.11",
+        "concurrently": "^9.2.1",
+        "cross-env": "^10.1.0",
+        "electron": "^39.1.0",
+        "electron-builder": "^26.0.12",
+        "electron-rebuild": "^3.2.9",
+        "esbuild": "^0.25.12",
+        "postcss": "^8.5.6",
+        "tailwindcss": "^4.1.16",
+        "typescript": "^5.9.3",
+        "vite": "^7.2.1"
+    },
+    "dependencies": {
+        "@aws-sdk/client-cloudwatch": "^3.962.0",
+        "@aws-sdk/client-ec2": "^3.962.0",
+        "@aws-sdk/client-ecs": "^3.962.0",
+        "@aws-sdk/client-elastic-load-balancing-v2": "^3.962.0",
+        "@aws-sdk/client-lambda": "^3.962.0",
+        "@aws-sdk/client-rds": "^3.963.0",
+        "@aws-sdk/client-s3": "^3.962.0",
+        "@aws-sdk/client-sts": "^3.962.0",
+        "@floating-ui/dom": "^1.7.4",
+        "@tailwindcss/postcss": "^4.1.16",
+        "@tiptap/extension-color": "^3.13.0",
+        "@tiptap/extension-table": "^3.13.0",
+        "@tiptap/extension-table-cell": "^3.13.0",
+        "@tiptap/extension-table-header": "^3.13.0",
+        "@tiptap/extension-table-row": "^3.13.0",
+        "@tiptap/extension-text-align": "^3.13.0",
+        "@tiptap/extension-text-style": "^3.13.0",
+        "@tiptap/extension-underline": "^3.13.0",
+        "@tiptap/react": "^3.13.0",
+        "@tiptap/starter-kit": "^3.13.0",
+        "argon2": "^0.41.1",
+        "better-sqlite3": "^12.5.0",
+        "lucide-react": "^0.552.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+        "react-router-dom": "^7.9.5",
+        "uuid": "^11.0.3",
+        "wait-on": "^9.0.1"
+    },
+    "build": {
+        "appId": "com.dashboard.app",
+        "productName": "Dashboard",
+        "directories": {
+            "output": "release"
+        },
+        "files": [
+            "dist/**/*",
+            "dist-electron/**/*",
+            "assets/**/*"
+        ],
+        "extraResources": [
+            {
+                "from": "assets",
+                "to": "assets"
+            }
+        ],
+        "asar": true,
+        "asarUnpack": [
+            "**/node_modules/better-sqlite3/**/*",
+            "**/node_modules/argon2/**/*"
+        ],
+        "win": {
+            "target": [
+                {
+                    "target": "nsis",
+                    "arch": [
+                        "x64"
+                    ]
+                },
+                {
+                    "target": "portable",
+                    "arch": [
+                        "x64"
+                    ]
+                }
+            ],
+            "artifactName": "${productName}-${version}-${arch}.${ext}",
+            "signAndEditExecutable": false,
+            "signExts": [],
+            "icon": "assets/icon.ico"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": true,
+            "createStartMenuShortcut": true,
+            "shortcutName": "Dashboard",
+            "installerIcon": "assets/icon.ico",
+            "uninstallerIcon": "assets/icon.ico"
+        }
+    }
+}
