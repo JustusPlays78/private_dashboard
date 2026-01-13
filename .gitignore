@@ -48,3 +48,5 @@ backend/**/.terraform/
 backend/**/.terraform.lock.hcl
 backend/**/terraform.tfstate
 backend/**/terraform.tfstate.backup
+
+release/

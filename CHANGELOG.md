@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-01-13
+
+### Added
+
+#### Miro-like Canvas Notes
+- **Multi-select & Box Selection**: Ctrl+Click for multi-select, drag on empty canvas for box selection
+- **Group Movement**: Move multiple selected elements together
+- **Canvas Templates**: Brainstorming, Retrospective, and Flowchart templates accessible via right-click context menu
+- **Connectors**: Draw lines/arrows between elements with anchor points
+- **Tables**: Miro-style tables with scaling to fit container, cell editing, and resize support
+- **Frames/Sections**: Group elements visually with colored frames
+- **Context Menu**: Right-click menu with Add Sticky Note (with color picker), Add Table, Add Image, Add Frame, Templates, Change Color, Layer controls, Grouping, Locking, Duplicate, Copy/Paste, Delete
+
+#### Sticky Notes Enhancements
+- **Markdown Support**: H1/H2/H3 headings, code blocks, blockquotes via TipTap extensions
+- **Selection-based Toolbar**: Floating formatting toolbar appears only when text is selected
+- **Heading Dropdown**: Quick access to heading levels in toolbar
+
+#### Canvas UX Improvements
+- **Floating Note Selector**: Transparent/translucent note selector matching zoom controls style (top-left)
+- **Element Creation at Mouse Position**: Sticky notes, tables, frames, and templates now created at cursor position when using right-click context menu
+- **Panel-based Color Selection**: Context menu uses panel navigation instead of hover submenus for better accessibility
+
+### Changed
+- **Color Theme**: Updated from blue/purple accent colors to neutral slate gray throughout the app
+- **CSS Variables**: Dark mode primary and accent colors updated to slate gray tones
+- **UI Components**: Updated NotesTree, Frame, Layout, TipTapEditor, CanvasTemplates to use slate colors
+- **Table Scaling**: Tables now automatically scale to fit their container when resized
+
+### Fixed
+- **Text Selection Bug**: Double-click in edit mode no longer exits editing - allows proper word selection
+- **Context Menu Color Picker**: Fixed color picker requiring sideways scrolling - now uses grid panel
+- **Template Position**: Templates now placed at right-click position instead of default offset
+
+### Technical
+- Added `screenToCanvas()` coordinate conversion function
+- Added `lastContextMenuPos` state for tracking context menu position
+- Updated `addStickyNote`, `addTableElement`, `addFrameElement`, `applyTemplate` to accept position parameter
+- Added `containerWidth` and `containerHeight` props to CanvasTable for scaling
+
+## [2.0.0-beta] - 2026-01-12
+
+### Changed
+- Build 2.0.0
+
 ## [1.1.1] - 2026-01-07
 
 ### Changed

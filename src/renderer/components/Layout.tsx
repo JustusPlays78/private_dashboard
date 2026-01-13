@@ -317,7 +317,7 @@ export default function Layout({ onLockRequest }: LayoutProps) {
           {sidebarOpen && iframePages.length === 0 && (
             <Link
               to="/settings/iframes"
-              className="flex items-center gap-2 px-3 py-2 mt-4 text-sm text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 py-2 mt-4 text-sm text-slate-400 hover:bg-slate-500/10 rounded-lg transition-colors"
             >
               <Plus size={16} />
               IFrame-Seiten hinzufügen

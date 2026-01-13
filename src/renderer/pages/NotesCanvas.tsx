@@ -1,73 +1,64 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Image as ImageIcon,
-  Lock,
-  Unlock,
   Trash2,
   Plus,
   ZoomIn,
   ZoomOut,
   ChevronDown,
-  Folder,
   FileText,
   Move,
   Hand,
-  Square,
-  Circle,
-  ArrowRight,
   Minus,
-  Triangle,
-  Star,
-  Diamond,
-  Copy,
-  Undo2,
-  Redo2
 } from 'lucide-react';
-import TipTapEditor from '../components/TipTapEditor';
+import StickyNote, { COLORS } from '../components/StickyNote';
+import ContextMenu from '../components/ContextMenu';
+import Connector, { getAnchorPoint, findBestAnchors, AnchorPosition, LineStyle } from '../components/Connector';
+import CanvasTable, { createDefaultTableData, TableData } from '../components/CanvasTable';
+import Frame, { FRAME_COLORS } from '../components/Frame';
+import TemplatePicker, { CANVAS_TEMPLATES, CanvasTemplate } from '../components/CanvasTemplates';
 
 interface NoteItem {
   id: string;
-  parent_id?: string | null;
+  parentId?: string | null;
   name: string;
   type: number;
-  is_folder: boolean;
+  isFolder: boolean;
   content: string;
   position: number;
 }
 
 interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'shape' | 'connector';
+  type: 'sticky' | 'image' | 'connector' | 'table' | 'frame';
   x: number;
   y: number;
   width: number;
   height: number;
-  positionLocked: boolean;
   content?: string;
   imageUrl?: string;
   color?: string;
-  shape?: 'rectangle' | 'circle' | 'triangle' | 'arrow' | 'star' | 'diamond';
   zIndex: number;
   isEditing?: boolean;
-  // For connectors
-  fromId?: string;
-  toId?: string;
-  fromX?: number;
-  fromY?: number;
-  toX?: number;
-  toY?: number;
+  // Grouping
+  groupId?: string;
+  // Locking
+  locked?: boolean;
+  // Connector properties
+  fromElementId?: string;
+  toElementId?: string;
+  fromAnchor?: AnchorPosition;
+  toAnchor?: AnchorPosition;
+  lineStyle?: LineStyle;
+  arrowStart?: boolean;
+  arrowEnd?: boolean;
+  lineColor?: string;
+  // Table properties
+  tableData?: TableData;
+  // Frame properties
+  frameTitle?: string;
+  frameColor?: string;
 }
-
-const COLORS = [
-  { name: 'Yellow', value: '#fff9c4', dark: '#f9a825' },
-  { name: 'Blue', value: '#e3f2fd', dark: '#1976d2' },
-  { name: 'Green', value: '#e8f5e9', dark: '#388e3c' },
-  { name: 'Pink', value: '#fce4ec', dark: '#c2185b' },
-  { name: 'Purple', value: '#f3e5f5', dark: '#7b1fa2' },
-  { name: 'Orange', value: '#fff3e0', dark: '#f57c00' },
-  { name: 'Teal', value: '#e0f2f1', dark: '#00897b' },
-  { name: 'Gray', value: '#f5f5f5', dark: '#616161' },
-];
 
 export default function NotesCanvas() {
   const [noteItems, setNoteItems] = useState<NoteItem[]>([]);
@@ -109,19 +100,34 @@ export default function NotesCanvas() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  
+
+  // Context Menu
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; elementId: string | null; isCanvasMenu: boolean } | null>(null);
+
+  // Connector creation
+  const [isCreatingConnector, setIsCreatingConnector] = useState(false);
+  const [connectorStart, setConnectorStart] = useState<{ elementId: string; anchor: AnchorPosition } | null>(null);
+  const [connectorPreview, setConnectorPreview] = useState<{ x: number; y: number } | null>(null);
+
+  // Template picker
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [lastContextMenuPos, setLastContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Load notes on mount
   useEffect(() => {
     loadNoteItems();
-    
-    // Keyboard shortcuts
+  }, []);
+
+  // Keyboard shortcuts - needs to update when state changes
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger shortcuts when typing in editor
       const target = e.target as HTMLElement;
       if (target.closest('.ProseMirror') || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
-      
+
       if (e.key === 'v' || e.key === 'V') {
         setTool('select');
       } else if (e.key === 'h' || e.key === 'H') {
@@ -131,41 +137,113 @@ export default function NotesCanvas() {
         setSelectedElementIds([]);
       } else if (e.ctrlKey && e.key === 'z') {
         e.preventDefault();
-        undo();
+        // Undo inline to avoid stale closure
+        if (historyIndex > 0) {
+          setHistoryIndex(historyIndex - 1);
+          setCanvasElements(JSON.parse(JSON.stringify(history[historyIndex - 1])));
+        }
       } else if (e.ctrlKey && e.key === 'y') {
         e.preventDefault();
-        redo();
+        // Redo inline to avoid stale closure
+        if (historyIndex < history.length - 1) {
+          setHistoryIndex(historyIndex + 1);
+          setCanvasElements(JSON.parse(JSON.stringify(history[historyIndex + 1])));
+        }
       } else if (e.ctrlKey && e.key === 'c') {
         e.preventDefault();
-        copySelected();
+        // Copy inline
+        const ids = selectedElementId ? [selectedElementId] : selectedElementIds;
+        const elementsToCopy = canvasElements.filter(el => ids.includes(el.id));
+        setClipboard(JSON.parse(JSON.stringify(elementsToCopy)));
       } else if (e.ctrlKey && e.key === 'v') {
         e.preventDefault();
-        paste();
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedElementId) {
-          deleteElement(selectedElementId);
+        // Paste inline
+        if (clipboard.length > 0) {
+          const pastedElements = clipboard.map(el => ({
+            ...el,
+            id: Date.now().toString() + Math.random(),
+            x: el.x + 50,
+            y: el.y + 50,
+            zIndex: canvasElements.length + 1,
+          }));
+          const newElements = [...canvasElements, ...pastedElements];
+          setCanvasElements(newElements);
+          // Add to history
+          const newHistory = history.slice(0, historyIndex + 1);
+          newHistory.push(JSON.parse(JSON.stringify(newElements)));
+          if (newHistory.length > 50) newHistory.shift();
+          setHistory(newHistory);
+          setHistoryIndex(newHistory.length - 1);
+          setSelectedElementIds(pastedElements.map(el => el.id));
         }
-        selectedElementIds.forEach(id => deleteElement(id));
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const idsToDelete = selectedElementId ? [selectedElementId, ...selectedElementIds] : selectedElementIds;
+        if (idsToDelete.length > 0) {
+          const newElements = canvasElements.filter(el => !idsToDelete.includes(el.id));
+          setCanvasElements(newElements);
+          // Add to history
+          const newHistory = history.slice(0, historyIndex + 1);
+          newHistory.push(JSON.parse(JSON.stringify(newElements)));
+          if (newHistory.length > 50) newHistory.shift();
+          setHistory(newHistory);
+          setHistoryIndex(newHistory.length - 1);
+          setSelectedElementId(null);
+          setSelectedElementIds([]);
+        }
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [historyIndex, history, selectedElementId, selectedElementIds, canvasElements, clipboard]);
 
+  // Load canvas elements and restore viewport when note changes
   useEffect(() => {
     if (selectedNote && selectedNote.type === 3) {
       try {
         const elements = selectedNote.content ? JSON.parse(selectedNote.content) : [];
         setCanvasElements(elements);
+
+        // Restore saved viewport position for this note
+        const savedViewport = localStorage.getItem(`canvas-viewport-${selectedNote.id}`);
+        if (savedViewport) {
+          const { x, y, z } = JSON.parse(savedViewport);
+          setViewportX(x);
+          setViewportY(y);
+          setZoom(z);
+        } else {
+          // Reset to default for new notes
+          setViewportX(0);
+          setViewportY(0);
+          setZoom(1);
+        }
       } catch (e) {
         setCanvasElements([]);
+        setViewportX(0);
+        setViewportY(0);
+        setZoom(1);
       }
     }
   }, [selectedNote]);
 
+  // Save viewport position when it changes
   useEffect(() => {
-    if (selectedNote && canvasElements.length > 0) {
+    if (selectedNote) {
+      const saveViewport = () => {
+        localStorage.setItem(`canvas-viewport-${selectedNote.id}`, JSON.stringify({
+          x: viewportX,
+          y: viewportY,
+          z: zoom,
+        }));
+      };
+      // Debounce viewport saving
+      const timer = setTimeout(saveViewport, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [viewportX, viewportY, zoom, selectedNote]);
+
+  useEffect(() => {
+    if (selectedNote) {
       const timer = setTimeout(saveCanvas, 2000);
       return () => clearTimeout(timer);
     }
@@ -177,7 +255,7 @@ export default function NotesCanvas() {
       if (result.items) {
         setNoteItems(result.items);
         // Auto-select first non-folder note
-        const firstNote = result.items.find((item: NoteItem) => !item.is_folder);
+        const firstNote = result.items.find((item: NoteItem) => !item.isFolder);
         if (firstNote && !selectedNote) {
           setSelectedNote(firstNote);
         }
@@ -199,10 +277,10 @@ export default function NotesCanvas() {
 
     try {
       const result = await window.electronAPI.noteItems.create({
-        parent_id: createModalParentId,
+        parentId: createModalParentId,
         name: newItemName.trim(),
         type: 3,
-        is_folder: createModalIsFolder,
+        isFolder: createModalIsFolder,
         content: createModalIsFolder ? '' : '[]',
         position: noteItems.length,
       });
@@ -248,33 +326,154 @@ export default function NotesCanvas() {
         name: selectedNote.name,
         content: JSON.stringify(canvasElements),
         position: selectedNote.position,
-        parent_id: selectedNote.parent_id,
+        parentId: selectedNote.parentId,
       });
     } catch (error) {
       console.error('Failed to save canvas:', error);
     }
   };
 
-  const addTextElement = (color?: string) => {
+  // Convert screen coordinates to canvas coordinates
+  const screenToCanvas = (screenX: number, screenY: number) => {
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    if (!canvasRect) return { x: 0, y: 0 };
+    const x = (screenX - canvasRect.left - viewportX) / zoom;
+    const y = (screenY - canvasRect.top - viewportY) / zoom;
+    return { x, y };
+  };
+
+  const addStickyNote = (color?: string, atPosition?: { x: number; y: number }) => {
+    const pos = atPosition || { x: -viewportX / zoom + 200, y: -viewportY / zoom + 200 };
     const newElement: CanvasElement = {
       id: Date.now().toString(),
-      type: 'text',
-      x: -viewportX / zoom + 200,
-      y: -viewportY / zoom + 200,
-      width: 280,
-      height: 200,
-      positionLocked: false,
-      content: '<p>New note...</p>',
+      type: 'sticky',
+      x: pos.x,
+      y: pos.y,
+      width: 200,
+      height: 180,
+      content: '',
       color: color || COLORS[0].value,
       zIndex: canvasElements.length,
+      isEditing: true,
     };
     const newElements = [...canvasElements, newElement];
     setCanvasElements(newElements);
     addToHistory(newElements);
+    setSelectedElementId(newElement.id);
   };
 
   const addImageElement = () => {
     fileInputRef.current?.click();
+  };
+
+  const addTableElement = (atPosition?: { x: number; y: number }) => {
+    const pos = atPosition || { x: -viewportX / zoom + 150, y: -viewportY / zoom + 150 };
+    const newElement: CanvasElement = {
+      id: Date.now().toString(),
+      type: 'table',
+      x: pos.x,
+      y: pos.y,
+      width: 330,
+      height: 150,
+      zIndex: canvasElements.length,
+      tableData: createDefaultTableData(3, 3),
+    };
+    const newElements = [...canvasElements, newElement];
+    setCanvasElements(newElements);
+    addToHistory(newElements);
+    setSelectedElementId(newElement.id);
+  };
+
+  const addFrameElement = (atPosition?: { x: number; y: number }) => {
+    const pos = atPosition || { x: -viewportX / zoom + 100, y: -viewportY / zoom + 100 };
+    const newElement: CanvasElement = {
+      id: Date.now().toString(),
+      type: 'frame',
+      x: pos.x,
+      y: pos.y,
+      width: 400,
+      height: 300,
+      zIndex: -10, // Frames behind other elements
+      frameTitle: 'Section',
+      frameColor: FRAME_COLORS[0].value,
+    };
+    const newElements = [...canvasElements, newElement];
+    setCanvasElements(newElements);
+    addToHistory(newElements);
+    setSelectedElementId(newElement.id);
+  };
+
+  // Apply template to canvas
+  const applyTemplate = (template: CanvasTemplate, atPosition?: { x: number; y: number }) => {
+    const pos = atPosition || { x: -viewportX / zoom + 50, y: -viewportY / zoom + 50 };
+    const offsetX = pos.x;
+    const offsetY = pos.y;
+    const baseTime = Date.now();
+
+    // First pass: create all non-connector elements and track their IDs
+    const elementIds: string[] = [];
+    const newElements: CanvasElement[] = [];
+
+    template.elements.forEach((el, index) => {
+      if (el.type === 'connector') return; // Skip connectors in first pass
+
+      const id = `${baseTime}-${index}`;
+      elementIds.push(id);
+
+      let zIndex = canvasElements.length + index;
+      if (el.type === 'frame') zIndex = -10 + index;
+
+      const element: CanvasElement = {
+        id,
+        type: el.type,
+        x: el.x + offsetX,
+        y: el.y + offsetY,
+        width: el.width,
+        height: el.height,
+        content: el.content,
+        color: el.color,
+        frameTitle: el.frameTitle,
+        frameColor: el.frameColor,
+        tableData: el.tableData,
+        zIndex,
+      };
+
+      newElements.push(element);
+    });
+
+    // Second pass: create connectors with proper element references
+    template.elements.forEach((el, index) => {
+      if (el.type !== 'connector') return;
+
+      const fromId = el.fromIndex !== undefined ? elementIds[el.fromIndex] : undefined;
+      const toId = el.toIndex !== undefined ? elementIds[el.toIndex] : undefined;
+
+      if (!fromId || !toId) return;
+
+      const connector: CanvasElement = {
+        id: `${baseTime}-connector-${index}`,
+        type: 'connector',
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        zIndex: -1,
+        fromElementId: fromId,
+        toElementId: toId,
+        fromAnchor: 'bottom',
+        toAnchor: 'top',
+        lineStyle: el.lineStyle || 'curved',
+        arrowEnd: true,
+        lineColor: '#6366f1',
+      };
+
+      newElements.push(connector);
+    });
+
+    const allElements = [...canvasElements, ...newElements];
+    setCanvasElements(allElements);
+    addToHistory(allElements);
+    setShowTemplatePicker(false);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -289,41 +488,15 @@ export default function NotesCanvas() {
           y: -viewportY / zoom + 150,
           width: 300,
           height: 200,
-          positionLocked: false,
           imageUrl: event.target?.result as string,
           zIndex: canvasElements.length,
         };
-        setCanvasElements([...canvasElements, newElement]);
+        const newElements = [...canvasElements, newElement];
+        setCanvasElements(newElements);
+        addToHistory(newElements);
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  const addShape = (shape: 'rectangle' | 'circle') => {
-    const newElement: CanvasElement = {
-      id: Date.now().toString(),
-      type: 'shape',
-      x: -viewportX / zoom + 200,
-      y: -viewportY / zoom + 200,
-      width: 200,
-      height: 150,
-      positionLocked: false,
-      color: COLORS[4].value,
-      shape,
-      content: '<p></p>', // Shapes können jetzt auch Text haben
-      zIndex: canvasElements.length,
-    };
-    const newElements = [...canvasElements, newElement];
-    setCanvasElements(newElements);
-    addToHistory(newElements);
-  };
-
-  const togglePositionLock = (id: string) => {
-    const newElements = canvasElements.map(el =>
-      el.id === id ? { ...el, positionLocked: !el.positionLocked } : el
-    );
-    setCanvasElements(newElements);
-    addToHistory(newElements);
   };
 
   const deleteElement = (id: string) => {
@@ -388,37 +561,45 @@ export default function NotesCanvas() {
     setSelectedElementIds(pastedElements.map(el => el.id));
   };
 
-  // Add more shapes
-  const addAdvancedShape = (shape: 'triangle' | 'arrow' | 'star' | 'diamond') => {
-    const newElement: CanvasElement = {
-      id: Date.now().toString(),
-      type: 'shape',
-      x: -viewportX / zoom + 200,
-      y: -viewportY / zoom + 200,
-      width: 200,
-      height: 150,
-      positionLocked: false,
-      color: COLORS[4].value,
-      shape,
-      content: '<p></p>',
-      zIndex: canvasElements.length,
-    };
-    const newElements = [...canvasElements, newElement];
-    setCanvasElements(newElements);
-    addToHistory(newElements);
-  };
-
   const handleElementMouseDown = (e: React.MouseEvent, id: string) => {
+    // Only handle left mouse button
+    if (e.button !== 0) return;
     if (tool === 'pan') return;
-    
-    const element = canvasElements.find(el => el.id === id);
-    if (!element || element.positionLocked) return;
-    
-    // Don't start drag if editing text
-    if (element.isEditing) return;
-    if (!element || element.positionLocked) return;
 
+    const element = canvasElements.find(el => el.id === id);
+    if (!element) return;
+
+    // Don't start drag if editing text or element is locked
+    if (element.isEditing || element.locked) return;
+
+    e.stopPropagation();
+    e.preventDefault();
+
+    // Handle multi-select with Ctrl/Cmd key
+    if (e.ctrlKey || e.metaKey) {
+      // Build current selection array
+      const currentIds = new Set(selectedElementIds);
+      if (selectedElementId) {
+        currentIds.add(selectedElementId);
+      }
+
+      if (currentIds.has(id)) {
+        // Remove from selection
+        currentIds.delete(id);
+      } else {
+        // Add to selection
+        currentIds.add(id);
+      }
+
+      setSelectedElementIds(Array.from(currentIds));
+      setSelectedElementId(null);
+      // Don't start dragging when Ctrl+clicking - just toggle selection
+      return;
+    }
+
+    // Normal click - single select, clear multi-select
     setSelectedElementId(id);
+    setSelectedElementIds([]);
     setDraggedId(id);
 
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -426,8 +607,6 @@ export default function NotesCanvas() {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
     });
-    
-    e.stopPropagation();
   };
 
   const handleResizeMouseDown = (e: React.MouseEvent, id: string, handle: string) => {
@@ -451,26 +630,54 @@ export default function NotesCanvas() {
   };
 
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    // Right-click or middle-click for panning
-    if (tool === 'pan' || e.button === 1 || e.button === 2) {
+    // Right-click - don't start panning, let context menu handle it
+    if (e.button === 2) {
+      return;
+    }
+
+    // Middle-click for panning or pan tool active
+    if (tool === 'pan' || e.button === 1) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - viewportX, y: e.clientY - viewportY });
       e.preventDefault();
-    } else if (tool === 'select' && e.ctrlKey && canvasRef.current) {
-      // Start box selection with Ctrl+Drag
+      return;
+    }
+
+    // Left-click on canvas background with select tool
+    if (tool === 'select' && e.button === 0 && canvasRef.current) {
+      // Start box selection on empty canvas area
       const canvasRect = canvasRef.current.getBoundingClientRect();
       const startX = (e.clientX - canvasRect.left - viewportX) / zoom;
       const startY = (e.clientY - canvasRect.top - viewportY) / zoom;
       setIsBoxSelecting(true);
       setSelectionStart({ x: startX, y: startY });
       setSelectionBox({ x: startX, y: startY, width: 0, height: 0 });
-    } else {
-      setSelectedElementId(null);
-      setSelectedElementIds([]);
+
+      // If not holding Ctrl, clear existing selection
+      if (!e.ctrlKey && !e.metaKey) {
+        setSelectedElementId(null);
+        setSelectedElementIds([]);
+      }
+
+      // Stop editing any elements
+      setCanvasElements(prev => prev.map(el => ({ ...el, isEditing: false })));
+
+      // Cancel connector creation
+      if (isCreatingConnector) {
+        cancelConnector();
+      }
     }
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    // Update connector preview position
+    if (isCreatingConnector && canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const mouseX = (e.clientX - canvasRect.left - viewportX) / zoom;
+      const mouseY = (e.clientY - canvasRect.top - viewportY) / zoom;
+      setConnectorPreview({ x: mouseX, y: mouseY });
+    }
+
     if (isPanning) {
       setViewportX(e.clientX - panStart.x);
       setViewportY(e.clientY - panStart.y);
@@ -487,9 +694,13 @@ export default function NotesCanvas() {
       
       setSelectionBox({ x, y, width, height });
       
-      // Find elements in box
+      // Find elements in box (exclude connectors and frames from box selection)
       const selectedIds = canvasElements
         .filter(el => {
+          // Skip connectors and frames - they shouldn't be box-selectable
+          if (el.type === 'connector' || el.type === 'frame') return false;
+
+          // Check if element overlaps with selection box
           return (
             el.x + el.width > x &&
             el.x < x + width &&
@@ -498,7 +709,7 @@ export default function NotesCanvas() {
           );
         })
         .map(el => el.id);
-      
+
       setSelectedElementIds(selectedIds);
     } else if (resizingId && canvasRef.current) {
       const element = canvasElements.find(el => el.id === resizingId);
@@ -534,17 +745,40 @@ export default function NotesCanvas() {
       updateElement(resizingId, { width: newWidth, height: newHeight, x: newX, y: newY });
     } else if (draggedId && canvasRef.current) {
       const element = canvasElements.find(el => el.id === draggedId);
-      if (!element || element.positionLocked) return;
+      if (!element) return;
 
       const canvasRect = canvasRef.current.getBoundingClientRect();
       const newX = (e.clientX - canvasRect.left - viewportX - dragOffset.x) / zoom;
       const newY = (e.clientY - canvasRect.top - viewportY - dragOffset.y) / zoom;
 
-      updateElement(draggedId, { x: newX, y: newY });
+      const deltaX = newX - element.x;
+      const deltaY = newY - element.y;
+
+      // If element is part of a group, move all grouped elements together
+      if (element.groupId) {
+        const newElements = canvasElements.map(el => {
+          if (el.groupId === element.groupId) {
+            return { ...el, x: el.x + deltaX, y: el.y + deltaY };
+          }
+          return el;
+        });
+        setCanvasElements(newElements);
+        // Don't add to history on every move - will be added on mouse up
+      } else {
+        updateElement(draggedId, { x: newX, y: newY });
+      }
     }
   };
 
   const handleCanvasMouseUp = () => {
+    // Add to history if we were dragging a grouped element
+    if (draggedId) {
+      const element = canvasElements.find(el => el.id === draggedId);
+      if (element?.groupId) {
+        addToHistory(canvasElements);
+      }
+    }
+
     setIsPanning(false);
     setDraggedId(null);
     setResizingId(null);
@@ -552,17 +786,69 @@ export default function NotesCanvas() {
     setIsBoxSelecting(false);
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      const newZoom = Math.max(0.1, Math.min(3, zoom * delta));
-      setZoom(newZoom);
+  // Zoom to cursor position
+  const zoomAtPoint = (newZoom: number, clientX: number, clientY: number) => {
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    if (!canvasRect) return;
+
+    // Mouse position relative to canvas element
+    const mouseX = clientX - canvasRect.left;
+    const mouseY = clientY - canvasRect.top;
+
+    // Canvas position under the mouse before zoom
+    const canvasX = (mouseX - viewportX) / zoom;
+    const canvasY = (mouseY - viewportY) / zoom;
+
+    // Calculate new viewport to keep the same canvas point under the mouse
+    const newViewportX = mouseX - canvasX * newZoom;
+    const newViewportY = mouseY - canvasY * newZoom;
+
+    setZoom(newZoom);
+    setViewportX(newViewportX);
+    setViewportY(newViewportY);
+  };
+
+  // Native wheel event listener to avoid passive event issues
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheelEvent = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.max(0.1, Math.min(3, zoom * delta));
+        zoomAtPoint(newZoom, e.clientX, e.clientY);
+      }
+    };
+
+    canvas.addEventListener('wheel', handleWheelEvent, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheelEvent);
+  }, [zoom, viewportX, viewportY]);
+
+  const zoomIn = () => {
+    // Zoom to center of canvas
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    if (canvasRect) {
+      const centerX = canvasRect.left + canvasRect.width / 2;
+      const centerY = canvasRect.top + canvasRect.height / 2;
+      zoomAtPoint(Math.min(3, zoom * 1.2), centerX, centerY);
+    } else {
+      setZoom(Math.min(3, zoom * 1.2));
     }
   };
 
-  const zoomIn = () => setZoom(Math.min(3, zoom * 1.2));
-  const zoomOut = () => setZoom(Math.max(0.1, zoom / 1.2));
+  const zoomOut = () => {
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    if (canvasRect) {
+      const centerX = canvasRect.left + canvasRect.width / 2;
+      const centerY = canvasRect.top + canvasRect.height / 2;
+      zoomAtPoint(Math.max(0.1, zoom / 1.2), centerX, centerY);
+    } else {
+      setZoom(Math.max(0.1, zoom / 1.2));
+    }
+  };
+
   const resetZoom = () => { setZoom(1); setViewportX(0); setViewportY(0); };
 
   const bringToFront = (id: string) => {
@@ -570,10 +856,187 @@ export default function NotesCanvas() {
     updateElement(id, { zIndex: maxZ + 1 });
   };
 
-  const notes = noteItems.filter(item => !item.is_folder);
+  const sendToBack = (id: string) => {
+    const minZ = Math.min(...canvasElements.map(el => el.zIndex), 0);
+    updateElement(id, { zIndex: minZ - 1 });
+  };
+
+  // Grouping functions
+  const groupElements = (ids: string[]) => {
+    if (ids.length < 2) return;
+    const groupId = `group-${Date.now()}`;
+    const newElements = canvasElements.map(el =>
+      ids.includes(el.id) ? { ...el, groupId } : el
+    );
+    setCanvasElements(newElements);
+    addToHistory(newElements);
+  };
+
+  const ungroupElements = (groupId: string) => {
+    const newElements = canvasElements.map(el =>
+      el.groupId === groupId ? { ...el, groupId: undefined } : el
+    );
+    setCanvasElements(newElements);
+    addToHistory(newElements);
+  };
+
+  // Locking functions
+  const lockElement = (id: string) => {
+    updateElement(id, { locked: true });
+  };
+
+  const unlockElement = (id: string) => {
+    updateElement(id, { locked: false });
+  };
+
+  // Duplicate function
+  const duplicateElements = (ids: string[]) => {
+    const elementsToDuplicate = canvasElements.filter(el => ids.includes(el.id));
+    const duplicated = elementsToDuplicate.map(el => ({
+      ...el,
+      id: `${Date.now()}-${Math.random()}`,
+      x: el.x + 30,
+      y: el.y + 30,
+      zIndex: Math.max(...canvasElements.map(e => e.zIndex), 0) + 1,
+      groupId: undefined, // Don't copy group membership
+    }));
+    const newElements = [...canvasElements, ...duplicated];
+    setCanvasElements(newElements);
+    addToHistory(newElements);
+    setSelectedElementIds(duplicated.map(el => el.id));
+    setSelectedElementId(null);
+  };
+
+  // Context menu handler for elements
+  const handleContextMenu = (e: React.MouseEvent, elementId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, elementId, isCanvasMenu: false });
+    setSelectedElementId(elementId);
+  };
+
+  // Context menu handler for canvas background
+  const handleCanvasContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Store the canvas position for element creation
+    const canvasPos = screenToCanvas(e.clientX, e.clientY);
+    setLastContextMenuPos(canvasPos);
+    // Only show canvas menu if clicking on background (not on an element)
+    setContextMenu({ x: e.clientX, y: e.clientY, elementId: null, isCanvasMenu: true });
+  };
+
+  // Connector functions
+  const startConnector = (elementId: string, anchor: AnchorPosition) => {
+    setIsCreatingConnector(true);
+    setConnectorStart({ elementId, anchor });
+  };
+
+  const finishConnector = (elementId: string, anchor: AnchorPosition) => {
+    if (!connectorStart || connectorStart.elementId === elementId) {
+      cancelConnector();
+      return;
+    }
+
+    const newConnector: CanvasElement = {
+      id: `connector-${Date.now()}`,
+      type: 'connector',
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      zIndex: -1, // Connectors behind other elements
+      fromElementId: connectorStart.elementId,
+      toElementId: elementId,
+      fromAnchor: connectorStart.anchor,
+      toAnchor: anchor,
+      lineStyle: 'curved',
+      arrowEnd: true,
+      lineColor: '#6366f1',
+    };
+
+    const newElements = [...canvasElements, newConnector];
+    setCanvasElements(newElements);
+    addToHistory(newElements);
+    cancelConnector();
+  };
+
+  const cancelConnector = () => {
+    setIsCreatingConnector(false);
+    setConnectorStart(null);
+    setConnectorPreview(null);
+  };
+
+  // Get anchor positions for an element
+  const getElementAnchors = (element: CanvasElement) => {
+    return {
+      top: { x: element.x + element.width / 2, y: element.y },
+      right: { x: element.x + element.width, y: element.y + element.height / 2 },
+      bottom: { x: element.x + element.width / 2, y: element.y + element.height },
+      left: { x: element.x, y: element.y + element.height / 2 },
+    };
+  };
+
+  const notes = noteItems.filter(item => !item.isFolder);
+
+  // Get context menu element info
+  const contextMenuElement = contextMenu?.elementId ? canvasElements.find(el => el.id === contextMenu.elementId) : null;
+  const selectedIds = selectedElementId ? [selectedElementId, ...selectedElementIds] : selectedElementIds;
+  const isMultiSelect = selectedIds.length > 1;
+  const isGrouped = contextMenuElement?.groupId !== undefined;
+  const isLocked = contextMenuElement?.locked === true;
 
   const modals = (
     <>
+      {/* Context Menu */}
+      {contextMenu && (contextMenuElement || contextMenu.isCanvasMenu) && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onBringToFront={() => contextMenu.elementId && bringToFront(contextMenu.elementId)}
+          onSendToBack={() => contextMenu.elementId && sendToBack(contextMenu.elementId)}
+          onGroup={() => groupElements(selectedIds)}
+          onUngroup={() => contextMenuElement?.groupId && ungroupElements(contextMenuElement.groupId)}
+          onLock={() => contextMenu.elementId && lockElement(contextMenu.elementId)}
+          onUnlock={() => contextMenu.elementId && unlockElement(contextMenu.elementId)}
+          onDuplicate={() => contextMenu.elementId && duplicateElements(selectedIds.length > 0 ? selectedIds : [contextMenu.elementId])}
+          onDelete={() => {
+            if (!contextMenu.elementId) return;
+            const idsToDelete = selectedIds.length > 0 ? selectedIds : [contextMenu.elementId];
+            const newElements = canvasElements.filter(el => !idsToDelete.includes(el.id));
+            setCanvasElements(newElements);
+            addToHistory(newElements);
+            setSelectedElementId(null);
+            setSelectedElementIds([]);
+          }}
+          onCopy={copySelected}
+          onPaste={paste}
+          onAddStickyNote={() => addStickyNote(undefined, lastContextMenuPos || undefined)}
+          onAddStickyNoteWithColor={(color) => addStickyNote(color, lastContextMenuPos || undefined)}
+          onAddTable={() => addTableElement(lastContextMenuPos || undefined)}
+          onAddImage={addImageElement}
+          onAddFrame={() => addFrameElement(lastContextMenuPos || undefined)}
+          onShowTemplates={() => setShowTemplatePicker(true)}
+          onColorChange={(color) => contextMenu.elementId && updateElement(contextMenu.elementId, { color })}
+          currentColor={contextMenuElement?.color}
+          elementType={contextMenuElement?.type}
+          isMultiSelect={isMultiSelect}
+          isGrouped={isGrouped}
+          isLocked={isLocked}
+          canPaste={clipboard.length > 0}
+          isCanvasMenu={contextMenu.isCanvasMenu}
+        />
+      )}
+
+      {/* Template Picker */}
+      {showTemplatePicker && (
+        <TemplatePicker
+          onSelect={(template) => applyTemplate(template, lastContextMenuPos || undefined)}
+          onClose={() => setShowTemplatePicker(false)}
+        />
+      )}
+
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-slate-800 rounded-lg p-6 w-96 border border-slate-700">
@@ -589,7 +1052,7 @@ export default function NotesCanvas() {
                 if (e.key === 'Escape') setShowCreateModal(false);
               }}
               placeholder="Enter name..."
-              className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-purple-500 focus:outline-none"
+              className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-slate-400 focus:outline-none"
               autoFocus
             />
             <div className="flex gap-2 mt-4 justify-end">
@@ -601,7 +1064,7 @@ export default function NotesCanvas() {
               </button>
               <button
                 onClick={handleCreateConfirm}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded"
+                className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded"
               >
                 Create
               </button>
@@ -644,13 +1107,13 @@ export default function NotesCanvas() {
     return (
       <>
         {modals}
-        <div className="h-screen flex items-center justify-center bg-slate-900 text-slate-400">
+        <div className="h-full flex items-center justify-center bg-slate-900 text-slate-400">
           <div className="text-center">
             <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
             <p className="mb-4">No notes yet. Create one to get started!</p>
             <button
               onClick={() => createNoteItem(null, false)}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded"
+              className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded"
             >
               Create First Note
             </button>
@@ -663,22 +1126,21 @@ export default function NotesCanvas() {
   return (
     <>
       {modals}
-      <div className="h-screen flex flex-col bg-slate-900">
-        {/* Topbar */}
-        <div className="bg-slate-800 border-b border-slate-700 px-4 py-2 flex items-center gap-3">
-          {/* Note Selector Dropdown */}
+      <div className="h-full flex flex-col bg-slate-900 overflow-hidden relative">
+        {/* Floating Note Selector - top left */}
+        <div className="absolute top-3 left-3 z-20">
           <div className="relative">
             <button
               onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-white"
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/90 backdrop-blur-sm hover:bg-slate-700/90 rounded-lg text-white text-sm border border-slate-700/50 shadow-lg"
             >
-              <FileText className="w-4 h-4" />
-              <span className="max-w-xs truncate">{selectedNote.name}</span>
-              <ChevronDown className="w-4 h-4" />
+              <FileText className="w-3.5 h-3.5" />
+              <span className="max-w-[200px] truncate">{selectedNote.name}</span>
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
-            
+
             {showDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 max-h-96 overflow-auto">
+              <div className="absolute top-full left-0 mt-1 w-64 bg-slate-800/95 backdrop-blur-sm border border-slate-700 rounded-lg shadow-lg z-50 max-h-96 overflow-auto">
                 <div className="p-2">
                   <button
                     onClick={() => {
@@ -712,111 +1174,6 @@ export default function NotesCanvas() {
             )}
           </div>
 
-          <div className="flex-1" />
-
-          {/* Tool Selector */}
-          <div className="flex items-center gap-1 bg-slate-700 rounded p-1">
-            <button
-              onClick={() => setTool('select')}
-              className={`p-2 rounded ${tool === 'select' ? 'bg-purple-600' : 'hover:bg-slate-600'}`}
-              title="Select (V)"
-            >
-              <Move className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setTool('pan')}
-              className={`p-2 rounded ${tool === 'pan' ? 'bg-purple-600' : 'hover:bg-slate-600'}`}
-              title="Pan (H)"
-            >
-              <Hand className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Zoom Controls */}
-          <div className="flex items-center gap-1 bg-slate-700 rounded p-1">
-            <button onClick={zoomOut} className="p-2 hover:bg-slate-600 rounded" title="Zoom Out">
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <span className="px-2 text-sm text-white min-w-[60px] text-center">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button onClick={zoomIn} className="p-2 hover:bg-slate-600 rounded" title="Zoom In">
-              <ZoomIn className="w-4 h-4" />
-            </button>
-            <button onClick={resetZoom} className="p-2 hover:bg-slate-600 rounded" title="Reset">
-              <Minus className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Add Elements */}
-          <div className="flex items-center gap-1">
-            {COLORS.slice(0, 4).map((color) => (
-              <button
-                key={color.value}
-                onClick={() => addTextElement(color.value)}
-                className="w-8 h-8 rounded border-2 border-slate-600 hover:border-white transition-colors"
-                style={{ backgroundColor: color.value }}
-                title={`Add ${color.name} Note`}
-              />
-            ))}
-            
-            <button
-              onClick={addImageElement}
-              className="p-2 bg-blue-600 hover:bg-blue-500 rounded"
-              title="Add Image"
-            >
-              <ImageIcon className="w-4 h-4" />
-            </button>
-            
-            <button
-              onClick={() => addShape('rectangle')}
-              className="p-2 bg-slate-700 hover:bg-slate-600 rounded"
-              title="Add Rectangle"
-            >
-              <Square className="w-4 h-4" />
-            </button>
-            
-            <button
-              onClick={() => addShape('circle')}
-              className="p-2 bg-slate-700 hover:bg-slate-600 rounded"
-              title="Add Circle"
-            >
-              <Circle className="w-4 h-4" />
-            </button>
-            
-            <button
-              onClick={() => addAdvancedShape('triangle')}
-              className="p-2 bg-slate-700 hover:bg-slate-600 rounded"
-              title="Add Triangle"
-            >
-              <Triangle className="w-4 h-4" />
-            </button>
-            
-            <button
-              onClick={() => addAdvancedShape('diamond')}
-              className="p-2 bg-slate-700 hover:bg-slate-600 rounded"
-              title="Add Diamond"
-            >
-              <Diamond className="w-4 h-4" />
-            </button>
-            
-            <button
-              onClick={() => addAdvancedShape('star')}
-              className="p-2 bg-slate-700 hover:bg-slate-600 rounded"
-              title="Add Star"
-            >
-              <Star className="w-4 h-4" />
-            </button>
-            
-            <button
-              onClick={() => addAdvancedShape('arrow')}
-              className="p-2 bg-slate-700 hover:bg-slate-600 rounded"
-              title="Add Arrow"
-            >
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
           <input
             ref={fileInputRef}
             type="file"
@@ -830,16 +1187,23 @@ export default function NotesCanvas() {
         <div
           ref={canvasRef}
           className="flex-1 relative overflow-hidden bg-slate-900"
-          style={{ 
+          style={{
             backgroundImage: 'radial-gradient(circle, #334155 1px, transparent 1px)',
             backgroundSize: '20px 20px',
-            cursor: tool === 'pan' || isPanning ? 'grab' : 'default'
+            cursor: isPanning
+              ? 'grabbing'
+              : tool === 'pan'
+                ? 'grab'
+                : draggedId
+                  ? 'grabbing'
+                  : 'default',
+            // Prevent text selection during box selection
+            userSelect: isBoxSelecting ? 'none' : 'auto',
           }}
           onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
-          onWheel={handleWheel}
-          onContextMenu={(e) => e.preventDefault()}
+          onContextMenu={handleCanvasContextMenu}
         >
           <div
             style={{
@@ -847,260 +1211,337 @@ export default function NotesCanvas() {
               transformOrigin: '0 0',
             }}
           >
-            {canvasElements.map((element) => {
+            {/* SVG Layer for Connectors */}
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              style={{ overflow: 'visible', zIndex: -1 }}
+            >
+              {canvasElements
+                .filter(el => el.type === 'connector')
+                .map(connector => {
+                  const fromElement = canvasElements.find(el => el.id === connector.fromElementId);
+                  const toElement = canvasElements.find(el => el.id === connector.toElementId);
+
+                  if (!fromElement || !toElement) return null;
+
+                  const fromAnchor = connector.fromAnchor || 'right';
+                  const toAnchor = connector.toAnchor || 'left';
+                  const fromAnchors = getElementAnchors(fromElement);
+                  const toAnchors = getElementAnchors(toElement);
+
+                  return (
+                    <g key={connector.id} style={{ pointerEvents: 'auto' }}>
+                      <Connector
+                        id={connector.id}
+                        fromX={fromAnchors[fromAnchor].x}
+                        fromY={fromAnchors[fromAnchor].y}
+                        toX={toAnchors[toAnchor].x}
+                        toY={toAnchors[toAnchor].y}
+                        lineStyle={connector.lineStyle}
+                        arrowStart={connector.arrowStart}
+                        arrowEnd={connector.arrowEnd}
+                        lineColor={connector.lineColor}
+                        isSelected={selectedElementId === connector.id}
+                        onClick={() => setSelectedElementId(connector.id)}
+                        onDelete={() => deleteElement(connector.id)}
+                      />
+                    </g>
+                  );
+                })}
+
+              {/* Connector Preview Line */}
+              {isCreatingConnector && connectorStart && connectorPreview && (() => {
+                const startElement = canvasElements.find(el => el.id === connectorStart.elementId);
+                if (!startElement) return null;
+                const startAnchors = getElementAnchors(startElement);
+                const startPos = startAnchors[connectorStart.anchor];
+
+                return (
+                  <line
+                    x1={startPos.x}
+                    y1={startPos.y}
+                    x2={connectorPreview.x}
+                    y2={connectorPreview.y}
+                    stroke="#64748b"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                  />
+                );
+              })()}
+            </svg>
+
+            {canvasElements.filter(el => el.type !== 'connector').map((element) => {
               const isSelected = selectedElementId === element.id;
-              
+              const isMultiSelected = selectedElementIds.includes(element.id);
+              const showAnchors = isSelected || isCreatingConnector;
+
+              // Check if this element is part of the same group as the selected element
+              const selectedElement = selectedElementId ? canvasElements.find(el => el.id === selectedElementId) : null;
+              const isGroupMember = element.groupId && selectedElement?.groupId === element.groupId && !isSelected;
+
               return (
                 <div
                   key={element.id}
-                  className={`absolute transition-all ${
-                    isSelected 
-                      ? 'ring-3 ring-blue-500 ring-offset-2 ring-offset-slate-900' 
-                      : 'hover:ring-2 hover:ring-blue-400/50'
-                  }`}
+                  className="absolute group"
                   style={{
                     left: element.x,
                     top: element.y,
                     width: element.width,
                     height: element.height,
                     zIndex: element.zIndex,
-                    cursor: tool === 'select' && !element.positionLocked && !element.isEditing ? 'move' : 'default',
+                    cursor: element.locked
+                      ? 'not-allowed'
+                      : element.type === 'frame'
+                        ? 'default'
+                        : element.isEditing
+                          ? 'default'
+                          : tool === 'select'
+                            ? 'grab'
+                            : 'default',
+                    // Visual indicator for multi-selected elements and group members
+                    outline: isMultiSelected
+                      ? '2px solid #64748b'
+                      : isGroupMember
+                        ? '2px dashed #64748b'
+                        : 'none',
+                    outlineOffset: '2px',
+                    // Frames should let mouse events pass through to elements inside
+                    pointerEvents: element.type === 'frame' ? 'none' : 'auto',
                   }}
                   onMouseDown={(e) => {
-                    // Start drag if not clicking inside the editor
+                    // Don't start drag if element is being edited and click is inside editor
                     const target = e.target as HTMLElement;
-                    if (!target.closest('.ProseMirror') && !target.closest('.tiptap-editor')) {
-                      handleElementMouseDown(e, element.id);
+                    if (element.isEditing && target.closest('.ProseMirror')) {
+                      return;
                     }
+                    handleElementMouseDown(e, element.id);
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSelectedElementId(element.id);
-                    bringToFront(element.id);
+                    // Don't handle click if inside editor (let editor handle it)
+                    const target = e.target as HTMLElement;
+                    if (element.isEditing && (target.closest('.ProseMirror') || target.closest('.sticky-note-editor'))) {
+                      return;
+                    }
+                    // Handle Ctrl+Click for multi-select (backup if mouseDown didn't fire)
+                    if (e.ctrlKey || e.metaKey) {
+                      setSelectedElementIds(prev => {
+                        if (prev.includes(element.id)) {
+                          return prev.filter(id => id !== element.id);
+                        }
+                        const newIds = [...prev, element.id];
+                        if (selectedElementId && !newIds.includes(selectedElementId)) {
+                          newIds.push(selectedElementId);
+                        }
+                        return newIds;
+                      });
+                      setSelectedElementId(null);
+                    } else if (selectedElementIds.length === 0) {
+                      // Only set single selection if not already multi-selecting
+                      setSelectedElementId(element.id);
+                    }
+                    // Don't auto-bring to front - let user control via context menu
                   }}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
-                    // Double click to start editing
-                    updateElement(element.id, { isEditing: true });
+                    // Check if double-click is inside the editor - if so, don't interfere with text selection
+                    const target = e.target as HTMLElement;
+                    if (target.closest('.ProseMirror') || target.closest('.sticky-note-editor')) {
+                      // Already in editor, let TipTap handle the double-click for text selection
+                      return;
+                    }
+                    // Only start editing if not already editing and not locked
+                    if (element.type === 'sticky' && !element.isEditing && !element.locked) {
+                      updateElement(element.id, { isEditing: true });
+                    }
                   }}
+                  onContextMenu={(e) => handleContextMenu(e, element.id)}
                 >
-                  {/* Resize Handles */}
-                  {isSelected && !element.positionLocked && (
+                  {/* Lock indicator */}
+                  {element.locked && (
+                    <div className="absolute -top-6 right-0 bg-slate-700 text-white text-xs px-2 py-0.5 rounded flex items-center gap-1 z-30">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      Locked
+                    </div>
+                  )}
+
+                  {/* Resize Handles - only when selected, not editing, and not locked */}
+                  {isSelected && !element.isEditing && !element.locked && (
                     <>
-                      {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map((handle) => (
+                      {['nw', 'ne', 'se', 'sw'].map((handle) => (
                         <div
                           key={handle}
                           onMouseDown={(e) => handleResizeMouseDown(e, element.id, handle)}
-                          className="absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full shadow-md hover:scale-125 transition-transform"
+                          className="absolute w-3 h-3 bg-slate-200 border-2 border-slate-500 rounded-sm shadow-md hover:scale-110 transition-transform"
                           style={{
                             cursor: `${handle}-resize`,
-                            top: handle.includes('n') ? -6 : handle.includes('s') ? 'calc(100% - 6px)' : 'calc(50% - 6px)',
-                            left: handle.includes('w') ? -6 : handle.includes('e') ? 'calc(100% - 6px)' : 'calc(50% - 6px)',
-                            zIndex: 10,
+                            top: handle.includes('n') ? -5 : 'calc(100% - 7px)',
+                            left: handle.includes('w') ? -5 : 'calc(100% - 7px)',
+                            zIndex: 20,
                           }}
                         />
                       ))}
                     </>
                   )}
-                  {element.type === 'text' ? (
-                    <div 
-                      className="h-full flex flex-col rounded-xl shadow-xl transition-all hover:shadow-2xl" 
-                      style={{ backgroundColor: element.color, border: `2px solid ${COLORS.find(c => c.value === element.color)?.dark || '#000'}20` }}
-                    >
-                      <div className="flex items-center justify-end gap-1 p-2 opacity-0 hover:opacity-100 transition-opacity">
-                        <div className="flex gap-0.5 mr-auto">
-                          {COLORS.map((color) => (
-                            <button
-                              key={color.value}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateElement(element.id, { color: color.value });
-                              }}
-                              className={`w-6 h-6 rounded-full shadow-sm hover:scale-110 transition-transform ${
-                                element.color === color.value ? 'ring-2 ring-offset-1 ring-slate-800' : ''
-                              }`}
-                              style={{ backgroundColor: color.value }}
-                              title={color.name}
-                            />
-                          ))}
-                        </div>
-                        <button
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePositionLock(element.id);
-                          }}
-                          className="p-1.5 hover:bg-black/10 rounded-lg transition-colors"
-                          title={element.positionLocked ? 'Unlock Position' : 'Lock Position'}
-                        >
-                          {element.positionLocked ? (
-                            <Lock className="w-4 h-4" style={{ color: COLORS.find(c => c.value === element.color)?.dark }} />
-                          ) : (
-                            <Unlock className="w-4 h-4" style={{ color: COLORS.find(c => c.value === element.color)?.dark }} />
-                          )}
-                        </button>
-                        <button
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteElement(element.id);
-                          }}
-                          className="p-1.5 hover:bg-red-100 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </button>
-                      </div>
-                      <div 
-                        className="flex-1 overflow-auto px-4 pb-4 cursor-text"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        style={{
-                          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-                        }}
-                      >
-                        <TipTapEditor
-                          content={element.content || '<p>Type something...</p>'}
-                          onChange={(content) => updateElement(element.id, { content })}
-                          editable={true}
-                          className="h-full"
-                        />
-                      </div>
-                    </div>
-                  ) : element.type === 'shape' ? (
-                    <div 
-                      className="w-full h-full border-2 group relative transition-all hover:shadow-xl"
-                      style={{
-                        backgroundColor: element.color,
-                        borderColor: `${COLORS.find(c => c.value === element.color)?.dark || '#000'}40`,
-                        borderRadius: element.shape === 'circle' ? '50%' : element.shape === 'rectangle' ? '12px' : '0',
-                        clipPath: element.shape === 'triangle' 
-                          ? 'polygon(50% 0%, 0% 100%, 100% 100%)' 
-                          : element.shape === 'diamond'
-                          ? 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)'
-                          : element.shape === 'star'
-                          ? 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)'
-                          : 'none',
-                      }}
-                    >
-                      {element.shape === 'arrow' && (
-                        <svg
-                          viewBox="0 0 100 100"
-                          className="absolute inset-0 w-full h-full"
-                          preserveAspectRatio="none"
-                        >
-                          <defs>
-                            <marker
-                              id={`arrowhead-${element.id}`}
-                              markerWidth="10"
-                              markerHeight="10"
-                              refX="9"
-                              refY="3"
-                              orient="auto"
-                            >
-                              <polygon
-                                points="0 0, 10 3, 0 6"
-                                fill={COLORS.find(c => c.value === element.color)?.dark || '#000'}
-                              />
-                            </marker>
-                          </defs>
-                          <line
-                            x1="10"
-                            y1="50"
-                            x2="90"
-                            y2="50"
-                            stroke={COLORS.find(c => c.value === element.color)?.dark || '#000'}
-                            strokeWidth="6"
-                            markerEnd={`url(#arrowhead-${element.id})`}
+
+                  {/* Anchor Points for Connectors - show on hover or when creating connector */}
+                  {showAnchors && !element.locked && element.type !== 'connector' && (
+                    <>
+                      {(['top', 'right', 'bottom', 'left'] as AnchorPosition[]).map((anchor) => {
+                        const pos = {
+                          top: { top: -6, left: '50%', transform: 'translateX(-50%)' },
+                          right: { top: '50%', right: -6, transform: 'translateY(-50%)' },
+                          bottom: { bottom: -6, left: '50%', transform: 'translateX(-50%)' },
+                          left: { top: '50%', left: -6, transform: 'translateY(-50%)' },
+                        };
+                        return (
+                          <div
+                            key={anchor}
+                            className="absolute w-3 h-3 bg-slate-500 rounded-full cursor-crosshair hover:bg-slate-400 hover:scale-125 transition-all z-30 border-2 border-white shadow-md"
+                            style={pos[anchor] as React.CSSProperties}
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              if (isCreatingConnector) {
+                                finishConnector(element.id, anchor);
+                              } else {
+                                startConnector(element.id, anchor);
+                              }
+                            }}
+                            title={isCreatingConnector ? 'Connect here' : 'Drag to connect'}
                           />
-                        </svg>
-                      )}
-                      
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
-                        <button
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePositionLock(element.id);
-                          }}
-                          className="p-1.5 bg-white/90 hover:bg-white rounded-lg shadow-md transition-all"
-                        >
-                          {element.positionLocked ? (
-                            <Lock className="w-4 h-4" style={{ color: COLORS.find(c => c.value === element.color)?.dark }} />
-                          ) : (
-                            <Unlock className="w-4 h-4" style={{ color: COLORS.find(c => c.value === element.color)?.dark }} />
-                          )}
-                        </button>
-                        <button
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteElement(element.id);
-                          }}
-                          className="p-1.5 bg-white/90 hover:bg-red-50 rounded-lg shadow-md transition-all"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </button>
-                      </div>
-                      
-                      {element.shape !== 'arrow' && (
-                        <div 
-                          className="w-full h-full overflow-auto text-center flex items-center justify-center p-4"
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            updateElement(element.id, { isEditing: true });
-                          }}
-                          onBlur={() => updateElement(element.id, { isEditing: false })}
-                          style={{
-                            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-                          }}
-                        >
-                          <TipTapEditor
-                            content={element.content || '<p></p>'}
-                            onChange={(content) => updateElement(element.id, { content })}
-                            editable={true}
-                            className="w-full"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="h-full relative group rounded-xl overflow-hidden shadow-xl transition-all hover:shadow-2xl bg-white">
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Sticky Note */}
+                  {element.type === 'sticky' && (
+                    <StickyNote
+                      id={element.id}
+                      content={element.content || ''}
+                      color={element.color || COLORS[0].value}
+                      isEditing={element.isEditing || false}
+                      isSelected={isSelected}
+                      onContentChange={(content) => updateElement(element.id, { content })}
+                      onColorChange={(color) => updateElement(element.id, { color })}
+                      onDelete={() => deleteElement(element.id)}
+                      onStartEditing={() => updateElement(element.id, { isEditing: true })}
+                      onStopEditing={() => updateElement(element.id, { isEditing: false })}
+                    />
+                  )}
+
+                  {/* Image */}
+                  {element.type === 'image' && (
+                    <div className="h-full w-full relative rounded-lg overflow-hidden shadow-lg bg-white">
                       <img
                         src={element.imageUrl}
                         alt="canvas"
                         className="w-full h-full object-contain"
+                        draggable={false}
                       />
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePositionLock(element.id);
-                          }}
-                          className="p-1.5 bg-white/90 hover:bg-white rounded-lg shadow-md transition-all"
-                        >
-                          {element.positionLocked ? (
-                            <Lock className="w-4 h-4 text-slate-700" />
-                          ) : (
-                            <Unlock className="w-4 h-4 text-slate-700" />
-                          )}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteElement(element.id);
-                          }}
-                          className="p-1.5 bg-white/90 hover:bg-red-50 rounded-lg shadow-md transition-all"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </button>
-                      </div>
+                      {/* Delete button on hover */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteElement(element.id);
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-red-50 rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </button>
                     </div>
+                  )}
+
+                  {/* Table */}
+                  {element.type === 'table' && element.tableData && (
+                    <CanvasTable
+                      id={element.id}
+                      tableData={element.tableData}
+                      isSelected={isSelected}
+                      isEditing={element.isEditing || false}
+                      onTableDataChange={(tableData) => updateElement(element.id, { tableData })}
+                      onStartEditing={() => updateElement(element.id, { isEditing: true })}
+                      onStopEditing={() => updateElement(element.id, { isEditing: false })}
+                      containerWidth={element.width}
+                      containerHeight={element.height}
+                    />
+                  )}
+
+                  {/* Frame */}
+                  {element.type === 'frame' && (
+                    <Frame
+                      id={element.id}
+                      title={element.frameTitle || 'Section'}
+                      color={element.frameColor || FRAME_COLORS[0].value}
+                      isSelected={isSelected}
+                      onTitleChange={(title) => updateElement(element.id, { frameTitle: title })}
+                      onColorChange={(color) => updateElement(element.id, { frameColor: color })}
+                    />
                   )}
                 </div>
               );
             })}
+
+            {/* Box Selection Rectangle */}
+            {isBoxSelecting && selectionBox.width > 0 && selectionBox.height > 0 && (
+              <div
+                className="absolute pointer-events-none border-2 border-slate-400 bg-slate-400/10"
+                style={{
+                  left: selectionBox.x,
+                  top: selectionBox.y,
+                  width: selectionBox.width,
+                  height: selectionBox.height,
+                  zIndex: 9999,
+                }}
+              />
+            )}
+          </div>
+
+          {/* Bottom-left floating controls - Tool & Zoom */}
+          <div className="absolute bottom-4 left-4 flex items-center gap-2 z-20">
+            {/* Tool Selector */}
+            <div className="flex items-center gap-0.5 bg-slate-800/90 backdrop-blur-sm rounded-lg p-1 border border-slate-700/50 shadow-lg">
+              <button
+                onClick={() => setTool('select')}
+                className={`p-2 rounded-md transition-colors ${tool === 'select' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                title="Select (V)"
+              >
+                <Move className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setTool('pan')}
+                className={`p-2 rounded-md transition-colors ${tool === 'pan' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                title="Pan (H)"
+              >
+                <Hand className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Zoom Controls */}
+            <div className="flex items-center gap-0.5 bg-slate-800/90 backdrop-blur-sm rounded-lg p-1 border border-slate-700/50 shadow-lg">
+              <button onClick={zoomOut} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-md transition-colors" title="Zoom Out">
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <button
+                onClick={resetZoom}
+                className="px-2 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-700 rounded-md transition-colors min-w-[50px] text-center"
+                title="Reset Zoom"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button onClick={zoomIn} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-md transition-colors" title="Zoom In">
+                <ZoomIn className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Coordinates Display */}
+            <div className="bg-slate-800/90 backdrop-blur-sm rounded-lg px-2 py-1 border border-slate-700/50 shadow-lg">
+              <span className="text-xs text-slate-400 font-mono">
+                {Math.round(-viewportX / zoom)}, {Math.round(-viewportY / zoom)}
+              </span>
+            </div>
           </div>
         </div>
       </div>

@@ -3,19 +3,19 @@ import { ChevronRight, ChevronDown, Folder, FolderOpen, FileText, Plus, Trash2 }
 
 export interface NoteItem {
   id: string;
-  parent_id?: string | null;
+  parentId?: string | null;
   name: string;
   type: number; // 1=word, 2=table, 3=canvas
-  is_folder: boolean;
+  isFolder: boolean;
   content: string;
   position: number;
-  created_at: string;
-  updated_at: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface TreeNodeProps {
   item: NoteItem;
-  children: NoteItem[];
+  allItems: NoteItem[];
   level: number;
   selectedId: string | null;
   expandedIds: Set<string>;
@@ -25,21 +25,22 @@ interface TreeNodeProps {
   onAddChild: (parentId: string) => void;
 }
 
-function TreeNode({ item, children, level, selectedId, expandedIds, onSelect, onToggle, onDelete, onAddChild }: TreeNodeProps) {
+function TreeNode({ item, allItems, level, selectedId, expandedIds, onSelect, onToggle, onDelete, onAddChild }: TreeNodeProps) {
   const isExpanded = expandedIds.has(item.id);
   const isSelected = selectedId === item.id;
+  const children = allItems.filter(i => i.parentId === item.id);
   const hasChildren = children.length > 0;
 
   return (
     <div>
       <div
         className={`flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer group ${
-          isSelected ? 'bg-purple-600/20 text-purple-300' : 'hover:bg-slate-700/50 text-slate-300'
+          isSelected ? 'bg-slate-600/40 text-white' : 'hover:bg-slate-700/50 text-slate-300'
         }`}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         onClick={() => onSelect(item)}
       >
-        {item.is_folder && (
+        {item.isFolder && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -54,23 +55,23 @@ function TreeNode({ item, children, level, selectedId, expandedIds, onSelect, on
             )}
           </button>
         )}
-        
-        {!item.is_folder && <div className="w-5" />}
-        
-        {item.is_folder ? (
+
+        {!item.isFolder && <div className="w-5" />}
+
+        {item.isFolder ? (
           isExpanded ? (
             <FolderOpen className="w-4 h-4 text-yellow-400 flex-shrink-0" />
           ) : (
             <Folder className="w-4 h-4 text-yellow-400 flex-shrink-0" />
           )
         ) : (
-          <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />
+          <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
         )}
         
         <span className="text-sm flex-1 truncate">{item.name}</span>
         
         <div className="hidden group-hover:flex items-center gap-1">
-          {item.is_folder && (
+          {item.isFolder && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -95,35 +96,25 @@ function TreeNode({ item, children, level, selectedId, expandedIds, onSelect, on
         </div>
       </div>
       
-      {item.is_folder && isExpanded && hasChildren && (
+      {item.isFolder && isExpanded && hasChildren && (
         <div>
-          {children.map((child) => {
-            const grandChildren = buildTree([child], children);
-            return (
-              <TreeNode
-                key={child.id}
-                item={child}
-                children={grandChildren}
-                level={level + 1}
-                selectedId={selectedId}
-                expandedIds={expandedIds}
-                onSelect={onSelect}
-                onToggle={onToggle}
-                onDelete={onDelete}
-                onAddChild={onAddChild}
-              />
-            );
-          })}
+          {children.map((child) => (
+            <TreeNode
+              key={child.id}
+              item={child}
+              allItems={allItems}
+              level={level + 1}
+              selectedId={selectedId}
+              expandedIds={expandedIds}
+              onSelect={onSelect}
+              onToggle={onToggle}
+              onDelete={onDelete}
+              onAddChild={onAddChild}
+            />
+          ))}
         </div>
       )}
     </div>
-  );
-}
-
-function buildTree(items: NoteItem[], allItems: NoteItem[]): NoteItem[] {
-  const parentIds = new Set(items.map(i => i.id));
-  return allItems.filter(item => 
-    item.parent_id && parentIds.has(item.parent_id)
   );
 }
 
@@ -151,7 +142,7 @@ export default function NotesTree({ items, selectedId, onSelect, onCreateNote, o
   };
 
   // Build root items (no parent)
-  const rootItems = items.filter(item => !item.parent_id);
+  const rootItems = items.filter(item => !item.parentId);
 
   return (
     <div className="h-full flex flex-col bg-slate-800 border-r border-slate-700">
@@ -174,30 +165,27 @@ export default function NotesTree({ items, selectedId, onSelect, onCreateNote, o
           </button>
         </div>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto p-2">
         {rootItems.length === 0 ? (
           <div className="text-center py-8 text-slate-500 text-sm">
             No notes yet
           </div>
         ) : (
-          rootItems.map((item) => {
-            const children = items.filter(i => i.parent_id === item.id);
-            return (
-              <TreeNode
-                key={item.id}
-                item={item}
-                children={children}
-                level={0}
-                selectedId={selectedId}
-                expandedIds={expandedIds}
-                onSelect={onSelect}
-                onToggle={toggleExpand}
-                onDelete={onDelete}
-                onAddChild={(parentId) => onCreateNote(parentId, false)}
-              />
-            );
-          })
+          rootItems.map((item) => (
+            <TreeNode
+              key={item.id}
+              item={item}
+              allItems={items}
+              level={0}
+              selectedId={selectedId}
+              expandedIds={expandedIds}
+              onSelect={onSelect}
+              onToggle={toggleExpand}
+              onDelete={onDelete}
+              onAddChild={(parentId) => onCreateNote(parentId, false)}
+            />
+          ))
         )}
       </div>
     </div>

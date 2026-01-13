@@ -31,6 +31,21 @@ const MAIN_DEPENDENCIES: Dependency[] = [
 
 const CHANGELOG = [
   {
+    version: '2.0.0',
+    date: '2026-01-13',
+    changes: [
+      'Miro-like Canvas: Multi-Select, Box Selection, Gruppierung',
+      'Canvas Templates: Brainstorming, Retrospective, Flowchart',
+      'Connectors: Pfeile zwischen Elementen mit Ankerpunkten',
+      'Tables: Miro-Style Tabellen mit Skalierung und Zell-Editing',
+      'Frames/Sections: Visuelle Gruppierung von Elementen',
+      'Floating Toolbar bei Text-Selektion mit Markdown-Support',
+      'Kontextmenü mit Panel-basierter Farbauswahl',
+      'Element-Erstellung an Cursor-Position',
+      'Farbschema auf neutrales Slate-Grau aktualisiert',
+    ],
+  },
+  {
     version: '1.1.0',
     date: '2026-01-07',
     changes: [
