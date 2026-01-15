@@ -43,6 +43,8 @@ build/
 *.log
 logs/
 
+release/
+
 # Terraform
 backend/**/.terraform/
 backend/**/.terraform.lock.hcl
